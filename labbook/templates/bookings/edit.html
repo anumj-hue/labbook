@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header %}
+{% block title %}Change booking{% endblock %}
+{% block content %}
+{{ page_header("Change booking", [("My Bookings", url_for("bookings.index")), ("#" ~ booking.id, url_for("bookings.detail", booking_id=booking.id))], eq_type.name) }}
+{% with action=url_for("bookings.edit", booking_id=booking.id), submit_label="Save changes" %}{% include "bookings/_picker.html" %}{% endwith %}
+<p class="mt-4"><a class="link" href="{{ url_for('bookings.detail', booking_id=booking.id) }}">Keep the booking as it is</a></p>
+{% endblock %}

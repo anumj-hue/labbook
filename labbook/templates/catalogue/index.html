@@ -13,7 +13,7 @@
     </div>
     <button class="btn btn-primary">Search</button>
   </div>
-  <details class="mt-3 md:open:block" {% if category or lab_id or no_approval %}open{% endif %}>
+  <details class="mt-3" {% if category or lab_id or no_approval or free_from or free_to %}open{% endif %}>
     <summary class="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">{{ icon("list-checks") }}Filters</summary>
     <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
       <div>
@@ -30,6 +30,15 @@
           {% for lab in labs %}<option value="{{ lab.id }}" {{ "selected" if lab.id == lab_id }}>{{ lab.name }}</option>{% endfor %}
         </select>
       </div>
+      <fieldset class="sm:col-span-2 lg:col-span-4">
+        <legend class="label">Free between</legend>
+        <div class="grid grid-cols-[1fr_auto_auto] gap-2 sm:max-w-md">
+          <input type="date" name="free_date" value="{{ free_date }}" class="input" aria-label="Date (default today)">
+          <input type="time" name="free_from" value="{{ free_from }}" step="900" class="input tabular" aria-label="From">
+          <input type="time" name="free_to" value="{{ free_to }}" step="900" class="input tabular" aria-label="To">
+        </div>
+        {% if free_error %}<p class="mt-1 text-xs font-medium text-destructive">{{ free_error }}</p>{% endif %}
+      </fieldset>
       <label class="flex h-11 items-center gap-2.5 text-sm sm:h-10">
         <input type="checkbox" name="no_approval" value="1" class="size-4" {{ "checked" if no_approval }}> No approval needed
       </label>
@@ -45,7 +54,6 @@
 <p class="mb-3 text-muted-foreground tabular">{{ types|length }} type{{ "s" if types|length != 1 }}</p>
 <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
   {% for t in types %}
-  {% set in_service = t.units_in_service|length %}
   <li class="card flex flex-col overflow-hidden">
     <a href="{{ url_for('catalogue.detail', type_id=t.id) }}" class="block p-3 pb-0">{{ equipment_thumb(t) }}</a>
     <div class="flex flex-1 flex-col gap-2 p-4">
@@ -53,13 +61,17 @@
         <h2 class="font-semibold leading-5"><a class="hover:text-primary" href="{{ url_for('catalogue.detail', type_id=t.id) }}">{{ t.name }}</a></h2>
         <p class="mt-1 text-xs text-muted-foreground">{{ t.category }}{% if t.labs %} · {{ t.labs|map(attribute="name")|join(", ") }}{% endif %}</p>
       </div>
+      {% set st = status[t.id] %}
       <p class="flex items-center gap-2 text-sm tabular">
-        <span class="size-2 rounded-full {{ 'bg-green-500' if in_service else 'bg-slate-400' }}" aria-hidden="true"></span>
-        {{ in_service }} unit{{ "s" if in_service != 1 }} in service
+        <span class="size-2 shrink-0 rounded-full {{ 'bg-green-500' if st.free else 'bg-slate-400' }}" aria-hidden="true"></span>
+        {% if st.total == 0 %}<span class="text-muted-foreground">No units in service</span>
+        {% elif st.free %}<span><strong class="font-semibold">{{ st.free }} of {{ st.total }}</strong> free now</span>
+        {% else %}<span class="text-muted-foreground">None free now{% if st.next_free_at %} · next at {{ st.next_free_at|time }}{% endif %}</span>{% endif %}
       </p>
       <div class="flex flex-wrap gap-1.5">
         {% if t.requires_approval %}{{ approval_badge() }}{% endif %}
       </div>
+      <a class="btn btn-primary btn-sm mt-auto self-start" href="{{ url_for('catalogue.detail', type_id=t.id) }}#book">Book</a>
     </div>
   </li>
   {% endfor %}

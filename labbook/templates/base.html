@@ -24,6 +24,9 @@
     <button type="button" class="mx-auto hidden rounded-lg p-2 text-muted-foreground hover:bg-background hover:text-foreground collapse-icon-open lg:block"
       data-sidebar-toggle aria-label="Expand sidebar">{{ icon("panel-left-open", "size-5") }}</button>
 
+    <div class="px-3 pb-2 pt-1">
+      <a href="{{ url_for('catalogue.index') }}" class="nav-link btn btn-primary w-full" title="New booking">{{ icon("plus", "size-5") }}<span class="nav-label">New booking</span></a>
+    </div>
     <nav class="flex-1 overflow-y-auto px-3 py-2">
       {% for heading, items in nav_sections() %}
       {% if heading %}<p class="nav-label mb-1 mt-5 px-2.5 text-xs font-medium text-muted-foreground">{{ heading }}</p>{% endif %}

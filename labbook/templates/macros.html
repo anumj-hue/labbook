@@ -57,6 +57,35 @@
 {% endif %}
 {% endmacro %}
 
+{# Booking status badge (spec §6.8): icon + text + colour, never colour alone. #}
+{% macro booking_status_badge(status) %}
+{% set s = status.value %}
+{% if s == "PENDING" %}<span class="badge bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300">{{ icon("clock", "size-3") }}Pending</span>
+{% elif s == "CONFIRMED" %}<span class="badge bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-300">{{ icon("circle-check", "size-3") }}Confirmed</span>
+{% elif s == "CHECKED_OUT" %}<span class="badge bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-300">{{ icon("package-open", "size-3") }}Checked out</span>
+{% elif s == "COMPLETED" %}<span class="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ icon("check-check", "size-3") }}Completed</span>
+{% elif s == "CANCELLED" %}<span class="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ icon("circle-x", "size-3") }}Cancelled</span>
+{% elif s == "REJECTED" %}<span class="badge bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300">{{ icon("ban", "size-3") }}Rejected</span>
+{% elif s == "EXPIRED" %}<span class="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ icon("hourglass", "size-3") }}Expired</span>
+{% elif s == "NO_SHOW" %}<span class="badge bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300">{{ icon("user-x", "size-3") }}No-show</span>
+{% elif s == "BUMPED" %}<span class="badge bg-violet-50 text-violet-800 dark:bg-violet-950 dark:text-violet-300">{{ icon("arrow-left-right", "size-3") }}Bumped</span>
+{% elif s == "OFFERED" %}<span class="badge bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-300">{{ icon("bell-ring", "size-3") }}Offered</span>
+{% else %}<span class="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ icon("hourglass", "size-3") }}{{ status.label }}</span>
+{% endif %}
+{% endmacro %}
+
+{# Calendar block colours follow the badge colours. #}
+{% macro booking_block_class(status) -%}
+{%- set s = status.value -%}
+{%- if s == "PENDING" -%}bg-amber-50 border-amber-500 text-amber-900 dark:bg-amber-950 dark:text-amber-200
+{%- elif s == "CONFIRMED" -%}bg-green-50 border-green-600 text-green-900 dark:bg-green-950 dark:text-green-200
+{%- elif s == "CHECKED_OUT" -%}bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-950 dark:text-blue-200
+{%- elif s == "NO_SHOW" -%}bg-red-50 border-red-600 text-red-900 dark:bg-red-950 dark:text-red-200
+{%- elif s == "OFFERED" -%}bg-teal-50 border-teal-600 text-teal-900 dark:bg-teal-950 dark:text-teal-200
+{%- else -%}bg-slate-100 border-slate-400 text-slate-800 dark:bg-slate-800 dark:text-slate-200
+{%- endif -%}
+{%- endmacro %}
+
 {% macro approval_badge() %}
 <span class="badge bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300">{{ icon("lock", "size-3") }}Approval needed</span>
 {% endmacro %}

@@ -22,6 +22,16 @@ def _sqlite_pragmas(dbapi_connection, _record) -> None:
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.close()
+        # Let SQLAlchemy emit BEGIN itself (see _sqlite_begin) instead of pysqlite's implicit handling.
+        dbapi_connection.isolation_level = None
+
+
+@event.listens_for(Engine, "begin")
+def _sqlite_begin(connection) -> None:
+    """Emits BEGIN, or BEGIN IMMEDIATE when the `sqlite_begin` execution option asks for the write lock."""
+    if connection.dialect.name == "sqlite":
+        mode = connection.get_execution_options().get("sqlite_begin", "")
+        connection.exec_driver_sql(f"BEGIN {mode}".strip())
 
 
 def create_app(config_name: str | None = None, **overrides) -> Flask:
@@ -47,12 +57,13 @@ def create_app(config_name: str | None = None, **overrides) -> Flask:
     from . import models  # noqa: F401  (register models with SQLAlchemy metadata)
     from .admin.views import bp as admin_bp
     from .auth.views import bp as auth_bp
+    from .bookings.views import bp as bookings_bp
     from .catalogue.views import bp as catalogue_bp
     from .cli import register_cli
     from .main.views import bp as main_bp
     from .units.views import bp as units_bp
 
-    for bp in (auth_bp, main_bp, catalogue_bp, units_bp, admin_bp):
+    for bp in (auth_bp, main_bp, catalogue_bp, bookings_bp, units_bp, admin_bp):
         app.register_blueprint(bp)
 
     register_cli(app)
@@ -76,9 +87,10 @@ def _init_login(app: Flask) -> None:
 def _init_templates(app: Flask) -> None:
     from markdown_it import MarkdownIt
 
-    from .models import Role, UnitStatus
+    from .models import BookingStatus, Role, UnitStatus
     from .nav import nav_sections
-    from .timeutil import fmt_date, fmt_datetime
+    from .rules import format_minutes
+    from .timeutil import fmt_date, fmt_datetime, fmt_relative, fmt_time
 
     md = MarkdownIt("commonmark", {"html": False, "linkify": False, "typographer": True})
 
@@ -88,7 +100,11 @@ def _init_templates(app: Flask) -> None:
 
     app.add_template_filter(fmt_date, "date")
     app.add_template_filter(fmt_datetime, "datetime")
-    app.jinja_env.globals.update(Role=Role, UnitStatus=UnitStatus, nav_sections=nav_sections)
+    app.add_template_filter(fmt_time, "time")
+    app.add_template_filter(fmt_relative, "relative")
+    app.add_template_filter(format_minutes, "duration")
+    app.jinja_env.globals.update(Role=Role, UnitStatus=UnitStatus, BookingStatus=BookingStatus,
+                                  nav_sections=nav_sections)
     app.jinja_env.trim_blocks = True
     app.jinja_env.lstrip_blocks = True
 

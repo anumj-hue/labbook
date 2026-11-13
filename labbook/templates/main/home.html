@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import icon, equipment_thumb, approval_badge %}
+{% from "macros.html" import icon, equipment_thumb, approval_badge, booking_status_badge %}
 {% block title %}Home{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-semibold leading-8">Hello, {{ current_user.name.split()[0] }}</h1>
@@ -33,6 +33,61 @@
       <div class="card p-4"><dt class="text-xs text-muted-foreground">Out of service</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.units_out }}</dd></div>
       <div class="card p-4"><dt class="text-xs text-muted-foreground">Equipment types</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.types }}</dd></div>
       {% if stats.users is defined %}<div class="card p-4"><dt class="text-xs text-muted-foreground">Active users</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.users }}</dd></div>{% endif %}
+    </dl>
+  </section>
+  {% endif %}
+
+  {% if current_user.is_suspended %}
+  <section class="rounded-xl border border-red-300 bg-red-50 p-4 text-red-900 lg:col-span-3 dark:border-red-800 dark:bg-red-950 dark:text-red-200" role="alert">
+    <p class="flex items-start gap-2 font-medium">{{ icon("ban", "mt-0.5 size-4") }}You can't make new bookings until {{ current_user.suspended_until|datetime }} because of missed bookings. Your existing bookings still stand.</p>
+  </section>
+  {% endif %}
+
+  {% set next = upcoming[0] if upcoming else None %}
+  <section class="card p-5 lg:col-span-2" aria-labelledby="h-next">
+    <h2 id="h-next" class="text-lg font-semibold">Next booking</h2>
+    {% if next %}
+    {% set s = next.starts_at.astimezone(tz) %}{% set e = next.ends_at.astimezone(tz) %}
+    <a href="{{ url_for('bookings.detail', booking_id=next.id) }}" class="mt-3 flex flex-col gap-3 rounded-lg border border-border bg-background p-4 hover:border-primary sm:flex-row sm:items-center">
+      <div class="min-w-0 flex-1">
+        <p class="font-semibold">{{ next.type.name }}</p>
+        <p class="mt-0.5 tabular">{{ s|date }} · {{ "%02d:%02d"|format(s.hour, s.minute) }}–{{ "%02d:%02d"|format(e.hour, e.minute) }} <span class="text-muted-foreground">· {{ next.starts_at|relative if next.starts_at > now else "in progress" }}</span></p>
+        <p class="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">{{ icon("map-pin", "size-3") }}{{ next.unit.asset_tag }} · {{ next.unit.lab.name }}{% if next.unit.lab.location %}, {{ next.unit.lab.location }}{% endif %}</p>
+      </div>
+      {{ booking_status_badge(next.status) }}
+    </a>
+    {% if upcoming|length > 1 %}
+    <h3 class="mt-5 text-sm font-semibold">Also coming up</h3>
+    <ul class="mt-2 divide-y divide-border">
+      {% for b in upcoming[1:] %}
+      {% set s = b.starts_at.astimezone(tz) %}
+      <li><a class="flex items-center justify-between gap-3 py-2 hover:text-primary" href="{{ url_for('bookings.detail', booking_id=b.id) }}">
+        <span class="truncate">{{ b.type.name }}</span><span class="shrink-0 text-muted-foreground tabular">{{ s|date }} · {{ "%02d:%02d"|format(s.hour, s.minute) }}</span></a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <a class="link mt-4 inline-block text-sm" href="{{ url_for('bookings.index') }}">All my bookings</a>
+    {% else %}
+    <p class="mt-2 text-muted-foreground">No upcoming bookings.</p>
+    <a class="btn btn-primary mt-3" href="{{ url_for('catalogue.index') }}">{{ icon("plus") }}Book equipment</a>
+    {% endif %}
+  </section>
+
+  {% if quota %}
+  <section class="card p-5" aria-labelledby="h-quota">
+    <h2 id="h-quota" class="text-lg font-semibold">Your limits</h2>
+    {% set hours = quota.week_minutes / 60 %}
+    <dl class="mt-3 space-y-4">
+      <div>
+        <dt class="flex justify-between text-sm"><span>Active bookings</span><span class="font-medium tabular">{{ quota.active }} of {{ quota.max_active }}</span></dt>
+        <dd class="mt-1.5 h-2 overflow-hidden rounded-full bg-background" role="meter" aria-valuemin="0" aria-valuemax="{{ quota.max_active }}" aria-valuenow="{{ quota.active }}" aria-label="Active bookings">
+          <div class="h-full rounded-full bg-primary" style="width: {{ [quota.active / (quota.max_active or 1) * 100, 100]|min }}%"></div></dd>
+      </div>
+      <div>
+        <dt class="flex justify-between text-sm"><span>Booked this week</span><span class="font-medium tabular">{{ quota.week_minutes|duration if quota.week_minutes else "0 h" }} of {{ quota.max_week_hours }} h</span></dt>
+        <dd class="mt-1.5 h-2 overflow-hidden rounded-full bg-background" role="meter" aria-valuemin="0" aria-valuemax="{{ quota.max_week_hours }}" aria-valuenow="{{ hours|round(1) }}" aria-label="Hours booked this week">
+          <div class="h-full rounded-full bg-primary" style="width: {{ [hours / (quota.max_week_hours or 1) * 100, 100]|min }}%"></div></dd>
+      </div>
     </dl>
   </section>
   {% endif %}

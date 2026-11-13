@@ -123,3 +123,17 @@
 .toast { transition: opacity 200ms ease, transform 200ms ease; }
 .toast[data-leaving] { opacity: 0; transform: translateY(4px); }
 dialog::backdrop { background: rgb(2 6 23 / 0.5); }
+
+/* Booking timeline (spec §6.7). */
+.stripes {
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgb(100 116 139 / 0.28) 5px 7px);
+}
+.hatched {
+  background-color: rgb(148 163 184 / 0.18);
+  background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgb(100 116 139 / 0.35) 4px 5px);
+}
+.tl-track { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.tl-track[data-axis="x"] { touch-action: pan-x pan-y; }
+[data-selection] { border: 2px solid var(--primary); background: color-mix(in srgb, var(--primary) 22%, transparent); }
+[data-selection][data-invalid] { border-color: var(--destructive); background: color-mix(in srgb, var(--destructive) 18%, transparent); }
+[data-handle] { touch-action: none; }

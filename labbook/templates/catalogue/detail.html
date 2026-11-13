@@ -6,13 +6,21 @@
   {% if current_user.role == Role.ADMIN %}<a class="btn btn-outline" href="{{ url_for('admin.type_edit', type_id=eq_type.id) }}">{{ icon("pencil") }}Edit type</a>{% endif %}
 {% endcall %}
 
+<div class="-mt-3 mb-5 flex flex-wrap gap-1.5">
+  {% if eq_type.requires_approval %}{{ approval_badge() }}{% endif %}
+  {% if eq_type.purpose_required %}{{ muted_badge("Purpose required", "info") }}{% endif %}
+  {% if eq_type.is_archived %}{{ muted_badge("Archived", "archive") }}{% endif %}
+</div>
+
+{% if not eq_type.is_archived %}
+<section id="book" aria-labelledby="h-book" class="mb-8">
+  <h2 id="h-book" class="sr-only">Book {{ eq_type.name }}</h2>
+  {% with action=url_for("bookings.create"), submit_label="Book" %}{% include "bookings/_picker.html" %}{% endwith %}
+</section>
+{% endif %}
+
 <div class="grid gap-6 lg:grid-cols-3">
   <div class="space-y-6 lg:col-span-2">
-    <div class="flex flex-wrap gap-1.5">
-      {% if eq_type.requires_approval %}{{ approval_badge() }}{% endif %}
-      {% if eq_type.purpose_required %}{{ muted_badge("Purpose required", "info") }}{% endif %}
-      {% if eq_type.is_archived %}{{ muted_badge("Archived", "archive") }}{% endif %}
-    </div>
     {% if eq_type.description %}
     <section class="card p-5" aria-labelledby="h-desc">
       <h2 id="h-desc" class="mb-3 text-lg font-semibold">About</h2>
@@ -47,8 +55,7 @@
     <section class="card p-5" aria-labelledby="h-rules">
       <h2 id="h-rules" class="text-lg font-semibold">Booking rules</h2>
       <dl class="mt-3 space-y-2.5">
-        {% set max_min = rules.max_duration_min %}
-        <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Max duration</dt><dd class="font-medium tabular">{% if max_min % 60 %}{{ max_min }} min{% else %}{{ max_min // 60 }} h{% endif %}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Max duration</dt><dd class="font-medium tabular">{{ max_duration_label }}</dd></div>
         {% if current_user.role == Role.STUDENT %}
         <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Book up to</dt><dd class="font-medium tabular">{{ rules.student_advance_days }} days ahead</dd></div>
         {% else %}

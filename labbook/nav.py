@@ -31,6 +31,8 @@ _STAFF_TECH = frozenset({Role.LAB_TECH})
 MAIN_NAV = (
     NavItem("Home", "main.home", "house"),
     NavItem("Equipment", "catalogue.index", "flask-conical", match="catalogue."),
+    NavItem("Calendar", "bookings.calendar", "calendar"),
+    NavItem("My Bookings", "bookings.index", "calendar-check", match="bookings.index"),
     NavItem("Units", "units.index", "wrench", roles=_STAFF_TECH, match="units."),
 )
 

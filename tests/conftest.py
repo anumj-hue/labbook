@@ -20,14 +20,20 @@ class IsolatedClient(FlaskClient):
 
     Tests keep an app context pushed for direct DB access; without this, requests would reuse it and
     share `g` (Flask-Login's cached user) and the SQLAlchemy session across requests.
+
+    The test's own session is committed before and after each request: before, so the request sees the
+    test's setup and isn't blocked by its write lock; after, so the test's next read starts a fresh
+    transaction (SQLite snapshot) that sees what the request wrote.
     """
 
     def open(self, *args, **kwargs):
+        _db.session.commit()
         token = _cv_app.set(None)
         try:
             return super().open(*args, **kwargs)
         finally:
             _cv_app.reset(token)
+            _db.session.commit()
 
 
 @pytest.fixture

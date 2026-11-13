@@ -5,9 +5,9 @@ from flask_login import current_user, login_required
 from sqlalchemy import func, select
 
 from ..extensions import db
-from ..models import EquipmentType, EquipmentUnit, Lab, Role, Term, UnitStatus, User
-from ..services import settings
-from ..timeutil import local_today
+from ..models import ACTIVE_STATUSES, Booking, EquipmentType, EquipmentUnit, Lab, Role, Term, UnitStatus, User
+from ..services import bookings, settings
+from ..timeutil import default_tz, local_today, utcnow
 
 bp = Blueprint("main", __name__)
 
@@ -58,5 +58,11 @@ def home():
         }
         if current_user.role is Role.ADMIN:
             stats["users"] = count(select(func.count()).select_from(User).where(User.active.is_(True)))
+    now = utcnow()
+    upcoming = db.session.scalars(
+        select(Booking).where(Booking.user_id == current_user.id, Booking.status.in_(ACTIVE_STATUSES),
+                              Booking.ends_at > now).order_by(Booking.starts_at).limit(5)
+    ).all()
+    quota = bookings.quota_summary(current_user, now) if current_user.role is Role.STUDENT else None
     return render_template("main/home.html", checklist=checklist, recent_types=recent_types, stats=stats,
-                           today=local_today())
+                           today=local_today(), upcoming=upcoming, quota=quota, tz=default_tz(), now=now)

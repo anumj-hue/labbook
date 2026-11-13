@@ -119,15 +119,18 @@ def update(actor: User, user: User, name: str, role: Role) -> None:
     audit.record(actor, "User", user.id, "update", before, audit.snapshot(user, *USER_AUDIT_FIELDS))
 
 
-def deactivate(actor: User, user: User) -> None:
-    """FR-A7. Cancelling the user's future bookings is added with bookings (slice 2)."""
+def deactivate(actor: User, user: User) -> int:
+    """FR-A7: deactivating signs the user out everywhere and cancels their future bookings."""
+    from .bookings import cancel_future_for_user  # local import: bookings depends on settings/audit only
     if user.id == actor.id:
         raise UserError("You can't deactivate your own account.")
     _guard_last_admin(user)
     before = audit.snapshot(user, *USER_AUDIT_FIELDS)
     user.active = False
     revoke_sessions(user)
+    cancelled = cancel_future_for_user(user, actor, "Account deactivated")
     audit.record(actor, "User", user.id, "deactivate", before, audit.snapshot(user, *USER_AUDIT_FIELDS))
+    return cancelled
 
 
 def reactivate(actor: User, user: User) -> None:

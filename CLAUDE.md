@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository state
 
-LabBook is a Flask app for booking shared lab equipment in one department. **Slice 1 of 4 is built** (accounts, admin setup, read-only catalogue). Booking does not exist yet.
+LabBook is a Flask app for booking shared lab equipment in one department. **Slices 1–2 of 4 are built**: accounts, admin setup, catalogue, and booking (picker, create/edit/cancel, My Bookings, calendar). Students can't book approval-required equipment until slice 3 adds Pending/approvals.
 
 - `spec.md` is the product spec and the source of truth; requirement IDs like `FR-O4` and refs like `§7.3` come from it. `spec.html` is a rendered copy; keep it in sync if you edit `spec.md`.
 - The approved plan (structure + 4 MVP slices) is in `C:\Users\anumj\.claude\plans\memoized-gathering-duckling.md`.
@@ -45,11 +45,18 @@ Run `npm run css` after adding Tailwind classes. The compiled `labbook/static/cs
 - Auth: server-side `UserSession` rows keyed by a SHA-256 hash of the cookie token (7-day idle, 30-day absolute expiry), plus DB-backed rate limiting (`AuthAttempt`). Email tokens (`services/tokens.py`) are signed itsdangerous payloads; reset and invite tokens stop working once the password hash changes.
 - Permissions: `@role_required(Role.X)` (`labbook/permissions.py`); Admin always passes `has_role`. The admin blueprint checks the role in `before_request`. Role-based nav is in `labbook/nav.py`; add items as pages ship.
 - Templates: `base.html` (app shell: sidebar/drawer, theme toggle, toasts, confirm `<dialog>`) and `auth_layout.html`. Shared macros are in `templates/macros.html`; badges must keep icon + text + colour (§6.8). Macros are imported without context, so pass `request.args` explicitly. Destructive POST forms use `data-confirm="..."`. `form_page.html` renders simple WTForms pages.
-- Tests: `tests/conftest.py` pushes an app context for direct DB access and uses `IsolatedClient`, which runs each request in its own app context. Without it, `g` and the DB session leak between requests. Fixtures: `make_user`, `login_as(role)`, `mailbox`, `link_from(msg, "/path/")`.
+- Tests: `tests/conftest.py` pushes an app context for direct DB access and uses `IsolatedClient`, which runs each request in its own app context and commits the test session before and after each request. Without it, `g`, the DB session and SQLite read snapshots leak between requests. After writes from another connection (e.g. threads), call `db.session.rollback()` before asserting. Fixtures: `make_user`, `login_as(role)`, `mailbox`, `link_from(msg, "/path/")`.
+- SQLAlchemy emits `BEGIN` itself (pysqlite autocommit is off; see `_sqlite_begin` in `labbook/__init__.py`), so every read opens a transaction and a WAL snapshot that lasts until commit/rollback.
 
-**SQLite replacement for the §7.3 exclusion constraints:** booking writes run in `BEGIN IMMEDIATE` transactions, plus `BEFORE INSERT/UPDATE` triggers on `booking` and `maintenance_block` that `RAISE(ABORT)` on overlap. Unit assignment catches the resulting `IntegrityError` and tries the next unit. `ACTIVE_STATUSES` is defined once in `models/booking.py` and the trigger SQL is generated from it.
+## Booking architecture (slice 2)
 
-**Rules engine:** `labbook/rules.py` is pure Python (no Flask/DB imports). Live validation in the UI calls `POST /bookings/validate`; there is no JS copy of the rules.
+- `labbook/rules.py`: the pure rules engine (FR-B3, §4.6), with no Flask/DB imports. `check(BookingContext) -> list[Violation]`.
+- `services/bookings.py`: `evaluate()` gathers facts (settings, the user's bookings, opening hours, free units) into a `BookingContext`. `create` / `reschedule` / `undo_cancel` run inside `services/db.write_transaction()` (BEGIN IMMEDIATE), re-evaluate inside the lock, then insert inside `begin_nested()` savepoints, falling through units on trigger `IntegrityError`. Live validation (`POST /bookings/validate`) calls the same `evaluate()`; there is no JS copy of the rules.
+- `services/calendar.py`: opening hours per lab and date (term vs vacation hours, holidays). `services/availability.py`: busy intervals, `free_units()` ordering (preferred unit, then fewest bookings that day, then asset tag), and catalogue "free now". `services/timeline.py`: slot and segment data for the picker.
+- Picker UI: `templates/bookings/_picker.html` (included by the equipment detail page and the edit page) plus `static/js/timeline.js`. The JS keeps the selection in sync with the Start/End selects, which are the no-JS/accessible fallback.
+- Students never see other people's names or booking details: the timeline and calendar show "Booked", and other users' booking pages return 404.
+
+**SQLite replacement for the §7.3 exclusion constraints:** booking writes run in `BEGIN IMMEDIATE` transactions, plus `BEFORE INSERT/UPDATE` triggers (`models/triggers.py`) on `booking` and `maintenance_block` that `RAISE(ABORT)` on overlap. `ACTIVE_STATUSES` is defined once in `models/booking.py` and the trigger SQL is generated from it; the slice 2 migration imports `CREATE_STATEMENTS`. If the active statuses ever change, add a migration that drops and recreates the triggers. `tests/test_migrations.py` checks that migrated and `create_all` databases have the same triggers.
 
 **MVP slices:** (1) foundation, auth, admin setup, read-only catalogue → (2) booking core + timeline → (3) approvals, notifications, jobs, teacher bump → (4) lab desk, no-shows, maintenance, CSV/audit. Recurring series, waitlist, reports/charts, anonymisation and Docker are post-MVP.
 

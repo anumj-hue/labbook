@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, booking_status_badge, field %}
+{% block title %}Booking #{{ booking.id }}{% endblock %}
+{% block content %}
+{% set start = booking.starts_at.astimezone(tz) %}
+{% set end = booking.ends_at.astimezone(tz) %}
+{{ page_header(booking.type.name, [("My Bookings" if is_owner else "Calendar", url_for("bookings.index") if is_owner else url_for("bookings.calendar"))], "Booking #" ~ booking.id) }}
+
+{% if just_created %}
+<div class="mb-6 flex flex-col gap-3 rounded-xl border border-primary/40 bg-primary-subtle p-4 sm:flex-row sm:items-center">
+  <span class="flex flex-1 items-center gap-2 font-medium text-primary">{{ icon("circle-check", "size-5") }}You're booked.</span>
+  <a class="btn btn-outline btn-sm" href="{{ url_for('catalogue.index') }}">{{ icon("plus") }}Add another</a>
+</div>
+{% endif %}
+
+<div class="grid max-w-4xl gap-6 lg:grid-cols-[1fr_18rem]">
+  <section class="card p-5 sm:p-6" aria-label="Booking details">
+    <div class="flex flex-wrap items-center gap-2">{{ booking_status_badge(booking.status) }}
+      {% if booking.is_late_cancel %}<span class="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">Late cancellation</span>{% endif %}
+    </div>
+    <dl class="mt-5 grid gap-4 sm:grid-cols-2">
+      <div><dt class="text-xs text-muted-foreground">When</dt><dd class="mt-0.5 font-medium tabular">{{ start|date(with_year=true) }} · {{ "%02d:%02d"|format(start.hour, start.minute) }}–{{ "%02d:%02d"|format(end.hour, end.minute) }}</dd>
+        <dd class="text-xs text-muted-foreground">{{ booking.duration_minutes|duration }}{% if not booking.has_started and booking.status.is_active %} · starts {{ booking.starts_at|relative }}{% endif %}</dd></div>
+      <div><dt class="text-xs text-muted-foreground">Unit</dt><dd class="mt-0.5 font-medium tabular">{{ booking.unit.asset_tag }}</dd></div>
+      <div><dt class="text-xs text-muted-foreground">Lab</dt><dd class="mt-0.5 font-medium">{{ booking.unit.lab.name }}</dd>
+        {% if booking.unit.lab.location %}<dd class="flex items-center gap-1 text-xs text-muted-foreground">{{ icon("map-pin", "size-3") }}{{ booking.unit.lab.location }}</dd>{% endif %}</div>
+      {% if not is_owner %}<div><dt class="text-xs text-muted-foreground">Booked by</dt><dd class="mt-0.5 font-medium">{{ booking.user.name if booking.user else "Anonymised user" }}</dd></div>{% endif %}
+      {% if booking.purpose %}<div class="sm:col-span-2"><dt class="text-xs text-muted-foreground">Purpose</dt><dd class="mt-0.5 whitespace-pre-line">{{ booking.purpose }}</dd></div>{% endif %}
+      {% if booking.status == BookingStatus.CANCELLED %}
+      <div class="sm:col-span-2"><dt class="text-xs text-muted-foreground">Cancelled</dt><dd class="mt-0.5">{{ booking.cancelled_at|datetime }}{% if booking.cancel_reason %} · {{ booking.cancel_reason }}{% endif %}</dd></div>
+      {% endif %}
+    </dl>
+    {% if booking.type.active_accessories %}
+    <div class="mt-6 border-t border-border pt-4">
+      <h2 class="text-sm font-semibold">What you'll receive</h2>
+      <ul class="mt-2 grid gap-1 sm:grid-cols-2">
+        {% for a in booking.type.active_accessories %}<li class="flex justify-between gap-3"><span>{{ a.name }}</span><span class="text-muted-foreground tabular">×{{ a.expected_qty }}</span></li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </section>
+
+  {% if is_owner and booking.can_change %}
+  <aside class="card space-y-3 p-5" aria-label="Actions">
+    <a class="btn btn-outline w-full" href="{{ url_for('bookings.edit', booking_id=booking.id) }}">{{ icon("pencil") }}Change time</a>
+    <form method="post" action="{{ url_for('bookings.cancel', booking_id=booking.id) }}" class="space-y-2"
+      data-confirm="Cancel this booking? You can undo for a few seconds afterwards." data-confirm-label="Cancel booking">
+      {{ cancel_form.hidden_tag() }}
+      {{ field(cancel_form.reason, rows=2) }}
+      <button class="btn btn-ghost w-full text-destructive">{{ icon("circle-x") }}Cancel booking</button>
+    </form>
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}

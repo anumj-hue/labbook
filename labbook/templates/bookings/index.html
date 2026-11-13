@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, booking_status_badge, empty_state, pagination %}
+{% block title %}My Bookings{% endblock %}
+{% macro when(b) -%}
+{%- set s = b.starts_at.astimezone(tz) -%}{%- set e = b.ends_at.astimezone(tz) -%}
+{{ s|date }} · {{ "%02d:%02d"|format(s.hour, s.minute) }}–{{ "%02d:%02d"|format(e.hour, e.minute) }}
+{%- endmacro %}
+{% block content %}
+{% call page_header("My Bookings") %}
+  <a class="btn btn-primary" href="{{ url_for('catalogue.index') }}">{{ icon("plus") }}New booking</a>
+{% endcall %}
+
+<nav class="mb-4 flex gap-1 border-b border-border" aria-label="Booking lists">
+  {% for key, label in (("upcoming", "Upcoming"), ("pending", "Pending"), ("past", "Past")) %}
+  <a href="{{ url_for('bookings.index', tab=key) }}" {% if tab == key %}aria-current="page"{% endif %}
+    class="-mb-px border-b-2 px-3 py-2.5 text-sm font-medium {{ 'border-primary text-primary' if tab == key else 'border-transparent text-muted-foreground hover:text-foreground' }}">{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{% if page.items %}
+<div class="card overflow-hidden">
+  <ul class="divide-y divide-border md:hidden">
+    {% for b in page.items %}
+    <li>
+      <a class="block p-4 hover:bg-background" href="{{ url_for('bookings.detail', booking_id=b.id) }}">
+        <span class="flex items-start justify-between gap-2"><span class="font-medium">{{ b.type.name }}</span>{{ booking_status_badge(b.status) }}</span>
+        <span class="mt-1 block text-sm tabular">{{ when(b) }}</span>
+        <span class="block text-xs text-muted-foreground">{{ b.unit.asset_tag }} · {{ b.unit.lab.name }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  <table class="data-table hidden md:table">
+    <thead><tr><th scope="col">When</th><th scope="col">Equipment</th><th scope="col">Unit</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {% for b in page.items %}
+      <tr>
+        <td class="tabular">{{ when(b) }}</td>
+        <td><a class="font-medium hover:text-primary" href="{{ url_for('bookings.detail', booking_id=b.id) }}">{{ b.type.name }}</a></td>
+        <td class="text-muted-foreground tabular">{{ b.unit.asset_tag }} · {{ b.unit.lab.name }}</td>
+        <td>{{ booking_status_badge(b.status) }}</td>
+        <td class="text-right">
+          {% if b.can_change %}<a class="btn btn-ghost btn-sm" href="{{ url_for('bookings.edit', booking_id=b.id) }}">{{ icon("pencil") }}Change</a>{% endif %}
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('bookings.detail', booking_id=b.id) }}">View</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ pagination(page, "bookings.index", request.args.to_dict()) }}
+{% elif tab == "upcoming" %}
+{{ empty_state("No upcoming bookings.", "Book equipment", url_for("catalogue.index"), "calendar") }}
+{% elif tab == "pending" %}
+{{ empty_state("No requests waiting for approval.", None, None, "clock") }}
+{% else %}
+{{ empty_state("No past bookings yet.", None, None, "calendar") }}
+{% endif %}
+
+{% if undo_booking %}
+<div data-toast="info" role="status"
+  class="toast fixed inset-x-4 bottom-4 z-[61] flex items-center gap-3 rounded-xl border border-border bg-background p-3.5 shadow-lg sm:inset-x-auto sm:right-4 sm:w-96">
+  <p class="flex-1">Booking cancelled.</p>
+  <form method="post" action="{{ url_for('bookings.undo_cancel', booking_id=undo_booking.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-outline btn-sm">{{ icon("undo-2") }}Undo</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

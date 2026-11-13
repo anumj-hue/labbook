@@ -1,6 +1,7 @@
 """`flask create-admin` (FR-S1) and `flask seed` (FR-S2)."""
 
-from datetime import timedelta
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import click
 from email_validator import EmailNotValidError, validate_email
@@ -9,7 +10,19 @@ from flask.cli import with_appcontext
 from sqlalchemy import func, select
 
 from .extensions import db
-from .models import Accessory, EquipmentType, EquipmentUnit, Holiday, Lab, Role, Term, UnitStatus, User
+from .models import (
+    Accessory,
+    Booking,
+    BookingStatus,
+    EquipmentType,
+    EquipmentUnit,
+    Holiday,
+    Lab,
+    Role,
+    Term,
+    UnitStatus,
+    User,
+)
 from .services import audit, privacy, settings, users
 from .services.passwords import MIN_PASSWORD_LENGTH, hash_password
 from .timeutil import local_today, utcnow
@@ -109,6 +122,45 @@ DEMO_USERS = [
 ]
 
 
+# (user email, type unit prefix, unit number, working-day offset, start, end, status)
+DEMO_BOOKINGS = [
+    ("student1@example.edu", "OSC", 1, 1, "10:00", "12:00", BookingStatus.CONFIRMED),
+    ("student1@example.edu", "DMM", 2, 2, "14:00", "15:00", BookingStatus.CONFIRMED),
+    ("student2@example.edu", "OSC", 2, 1, "10:00", "11:30", BookingStatus.CONFIRMED),
+    ("student2@example.edu", "FG", 1, 1, "13:00", "15:00", BookingStatus.CONFIRMED),
+    ("labtech@example.edu", "OSC", 3, 1, "15:00", "17:00", BookingStatus.CONFIRMED),
+    ("teacher@example.edu", "SA", 1, 2, "09:00", "11:00", BookingStatus.CONFIRMED),
+    ("teacher@example.edu", "OSC", 4, 3, "09:00", "12:00", BookingStatus.CONFIRMED),
+    ("student1@example.edu", "PSU", 1, -1, "10:00", "12:00", BookingStatus.COMPLETED),
+]
+
+
+def _working_day(today: date, offset: int, holidays: set[date]) -> date:
+    """The offset-th Mon–Fri day from today (negative = past), skipping seeded holidays."""
+    step = 1 if offset >= 0 else -1
+    day, remaining = today, abs(offset)
+    while remaining:
+        day += timedelta(days=step)
+        if day.weekday() < 5 and day not in holidays:
+            remaining -= 1
+    return day
+
+
+def _seed_bookings(people: dict[str, User], today: date) -> None:
+    tz = ZoneInfo(current_app.config["DEFAULT_TIMEZONE"])
+    holidays = {h.start_date for h in db.session.scalars(select(Holiday))}
+    units = {u.asset_tag: u for u in db.session.scalars(select(EquipmentUnit))}
+    for email, prefix, number, offset, start, end, status in DEMO_BOOKINGS:
+        user, unit = people[email], units[f"{prefix}-{number:02d}"]
+        day = _working_day(today, offset, holidays)
+        db.session.add(Booking(
+            unit_id=unit.id, type_id=unit.type_id, user_id=user.id, created_by_id=user.id,
+            starts_at=datetime.combine(day, time.fromisoformat(start), tz),
+            ends_at=datetime.combine(day, time.fromisoformat(end), tz),
+            status=status, user_role_at_booking=user.role, purpose="Demo booking",
+        ))
+
+
 def _clear_all_data() -> None:
     for table in reversed(db.metadata.sorted_tables):
         db.session.execute(table.delete())
@@ -156,9 +208,13 @@ def seed(reset: bool) -> None:
                                          serial_no=f"SN{eq_type.id:02d}{n:04d}", status=status))
 
     password_hash = hash_password(DEMO_PASSWORD)
+    people = {}
     for name, email, role in DEMO_USERS:
-        db.session.add(User(name=name, email=email, role=role, password_hash=password_hash,
-                            email_verified_at=now, consent_at=now, consent_version=notice.version))
+        people[email] = User(name=name, email=email, role=role, password_hash=password_hash,
+                             email_verified_at=now, consent_at=now, consent_version=notice.version)
+        db.session.add(people[email])
+    db.session.flush()
+    _seed_bookings(people, today)
 
     settings.set_value("allowed_email_domains", [], None)
     settings.mark_rules_reviewed(None)

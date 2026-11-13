@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, booking_status_badge, booking_block_class %}
+{% block title %}Calendar{% endblock %}
+{% macro label(b) -%}
+{%- if b.user_id == current_user.id -%}{{ b.type.name }}
+{%- elif can_see_names -%}{{ b.user.name if b.user else "Anonymised user" }}
+{%- else -%}Booked{%- endif -%}
+{%- endmacro %}
+{% macro times(b) -%}
+{%- set s = b.starts_at.astimezone(tz) -%}{%- set e = b.ends_at.astimezone(tz) -%}
+{{ "%02d:%02d"|format(s.hour, s.minute) }}–{{ "%02d:%02d"|format(e.hour, e.minute) }}
+{%- endmacro %}
+{% macro block(b, d) %}
+{% set mine_or_staff = b.user_id == current_user.id or can_see_names %}
+{% set s = b.starts_at.astimezone(tz) %}
+{% set e = b.ends_at.astimezone(tz) %}
+{% set top = ((s.hour - first_hour) * 60 + s.minute) / 60 * px_per_hour %}
+{% set end_minutes = (e.hour * 60 + e.minute) if e.date() == s.date() else 24 * 60 %}
+{% set height = [(end_minutes - s.hour * 60 - s.minute) / 60 * px_per_hour, 18]|max %}
+{% set lane, lanes_count = lanes[d][b.id] %}
+{% set cls = booking_block_class(b.status) if mine_or_staff else "bg-slate-200 border-slate-400 text-slate-700 dark:bg-slate-700 dark:text-slate-200" %}
+<{{ "a" if mine_or_staff else "div" }} {% if mine_or_staff %}href="{{ url_for('bookings.detail', booking_id=b.id) }}"{% endif %}
+  class="absolute overflow-hidden rounded-md border-l-4 px-1.5 py-1 text-[11px] leading-tight {{ cls }} {{ 'hover:brightness-95' if mine_or_staff }}"
+  style="top: {{ top }}px; height: {{ height }}px; left: calc({{ lane / lanes_count * 100 }}% + 2px); width: calc({{ 100 / lanes_count }}% - 4px)"
+  title="{{ label(b) }} · {{ b.type.name }} {{ b.unit.asset_tag }} · {{ times(b) }} · {{ b.status.label }}">
+  <span class="block truncate font-semibold">{{ label(b) }}</span>
+  <span class="block truncate tabular">{{ times(b) }} · {{ b.unit.asset_tag }}</span>
+</{{ "a" if mine_or_staff else "div" }}>
+{% endmacro %}
+{% block content %}
+{{ page_header("Calendar", subtitle=("Everyone's bookings, with names." if can_see_names else "Your bookings, and when others have booked.")) }}
+
+<form method="get" class="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center" aria-label="Calendar controls">
+  <input type="hidden" name="view" value="{{ view }}">
+  <div class="flex items-center gap-2">
+    <a class="btn btn-outline btn-icon" href="{{ url_for('bookings.calendar', view=view, date=prev_day.isoformat(), lab=lab_id, type=type_id) }}" aria-label="Previous">{{ icon("chevron-left") }}</a>
+    <h2 class="min-w-44 text-center font-semibold tabular" aria-live="polite">
+      {% if view == "day" %}{{ day|date(with_year=true) }}{% else %}{{ days[0]|date }} – {{ days[-1]|date(with_year=true) }}{% endif %}
+    </h2>
+    <a class="btn btn-outline btn-icon" href="{{ url_for('bookings.calendar', view=view, date=next_day.isoformat(), lab=lab_id, type=type_id) }}" aria-label="Next">{{ icon("chevron-right") }}</a>
+    <a class="btn btn-ghost" href="{{ url_for('bookings.calendar', view=view, lab=lab_id, type=type_id) }}">Today</a>
+  </div>
+  <div class="flex rounded-lg border border-border p-0.5 lg:ml-2" role="group" aria-label="View">
+    {% for key, text in (("day", "Day"), ("week", "Week")) %}
+    <a href="{{ url_for('bookings.calendar', view=key, date=day.isoformat(), lab=lab_id, type=type_id) }}" {% if view == key %}aria-current="page"{% endif %}
+      class="flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium {{ 'bg-primary-subtle text-primary' if view == key else 'text-muted-foreground hover:text-foreground' }}">{{ text }}</a>
+    {% endfor %}
+  </div>
+  <div class="grid flex-1 grid-cols-[1fr_1fr_auto] gap-2 lg:ml-auto lg:max-w-xl">
+    <label class="sr-only" for="lab">Lab</label>
+    <select id="lab" name="lab" class="input">
+      <option value="">All labs</option>
+      {% for lab in labs %}<option value="{{ lab.id }}" {{ "selected" if lab.id == lab_id }}>{{ lab.name }}</option>{% endfor %}
+    </select>
+    <label class="sr-only" for="type">Equipment</label>
+    <select id="type" name="type" class="input">
+      <option value="">All equipment</option>
+      {% for t in types %}<option value="{{ t.id }}" {{ "selected" if t.id == type_id }}>{{ t.name }}</option>{% endfor %}
+    </select>
+    <input type="hidden" name="date" value="{{ day.isoformat() }}">
+    <button class="btn btn-outline">Filter</button>
+  </div>
+</form>
+
+{# Desktop: time grid #}
+<div class="card hidden overflow-x-auto md:block">
+  <div class="min-w-[44rem]">
+    <div class="grid border-b border-border" style="grid-template-columns: 3.5rem repeat({{ days|length }}, minmax(0, 1fr))">
+      <div></div>
+      {% for d in days %}
+      <div class="border-l border-border px-2 py-2 text-center text-sm {{ 'font-semibold text-primary' if d == today else 'font-medium' }}">{{ d|date }}</div>
+      {% endfor %}
+    </div>
+    <div class="grid" style="grid-template-columns: 3.5rem repeat({{ days|length }}, minmax(0, 1fr))">
+      <div class="relative" style="height: {{ hours * px_per_hour }}px">
+        {% for h in range(first_hour, last_hour) %}<span class="absolute right-2 -translate-y-1/2 text-[11px] text-muted-foreground tabular" style="top: {{ (h - first_hour) * px_per_hour }}px">{% if not loop.first %}{{ "%02d:00"|format(h) }}{% endif %}</span>{% endfor %}
+      </div>
+      {% for d in days %}
+      <div class="relative border-l border-border {{ 'bg-primary-subtle/30' if d == today }}" style="height: {{ hours * px_per_hour }}px">
+        {% for h in range(first_hour + 1, last_hour) %}<div class="absolute inset-x-0 border-t border-border/70" style="top: {{ (h - first_hour) * px_per_hour }}px"></div>{% endfor %}
+        {% for b in by_day[d] %}{{ block(b, d) }}{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{# Mobile: agenda list #}
+<div class="space-y-4 md:hidden">
+  {% for d in days %}
+  <section aria-label="{{ d|date }}">
+    <h3 class="mb-2 text-sm font-semibold {{ 'text-primary' if d == today }}">{{ d|date }}{% if d == today %} · Today{% endif %}</h3>
+    {% if by_day[d] %}
+    <ul class="card divide-y divide-border overflow-hidden">
+      {% for b in by_day[d] %}
+      {% set mine_or_staff = b.user_id == current_user.id or can_see_names %}
+      <li>
+        <{{ "a" if mine_or_staff else "div" }} {% if mine_or_staff %}href="{{ url_for('bookings.detail', booking_id=b.id) }}"{% endif %} class="flex items-center justify-between gap-3 p-3 {{ 'hover:bg-background' if mine_or_staff }}">
+          <span class="min-w-0">
+            <span class="block truncate font-medium">{{ label(b) }}</span>
+            <span class="block truncate text-xs text-muted-foreground tabular">{{ times(b) }} · {{ b.type.name }} · {{ b.unit.asset_tag }}</span>
+          </span>
+          {% if mine_or_staff %}{{ booking_status_badge(b.status) }}{% endif %}
+        </{{ "a" if mine_or_staff else "div" }}>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-muted-foreground">No bookings.</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

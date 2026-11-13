@@ -29,7 +29,7 @@ def test_catalogue_lists_active_types_with_filters(login_as, client, catalogue):
     page = client.get("/equipment/").text
     assert "Oscilloscope" in page and "Spectrum Analyzer" in page
     assert "Chart Recorder" not in page
-    assert "1 unit in service" in page
+    assert "1 of 1</strong> free now" in page
 
     assert "Spectrum Analyzer" not in client.get("/equipment/?no_approval=1").text
     assert "Oscilloscope" not in client.get(f"/equipment/?lab={catalogue['lab_b'].id}").text

@@ -99,8 +99,10 @@ def user_action(user_id: int, action: str):
     user = _get_or_404(User, user_id)
     try:
         if action == "deactivate":
-            users.deactivate(current_user, user)
+            cancelled = users.deactivate(current_user, user)
             message = f"{user.name} has been deactivated and signed out."
+            if cancelled:
+                message += f" {cancelled} future booking{'s' if cancelled != 1 else ''} cancelled."
         elif action == "reactivate":
             users.reactivate(current_user, user)
             message = f"{user.name} has been reactivated."

@@ -1,0 +1,141 @@
+{#
+  Drag-on-timeline booking picker (spec §6.7). Expects picker_context() variables plus `action` and
+  `submit_label` from the including page.
+#}
+{% from "macros.html" import icon, field %}
+{% set n = timeline.slots|length %}
+<form id="booking-form" method="post" action="{{ action }}" novalidate data-booking-form
+  data-validate-url="{{ url_for('bookings.validate') }}" data-nav-url="{{ nav_url_template }}">
+  {{ form.hidden_tag() }}
+  <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div class="card min-w-0 p-4 sm:p-5">
+      <div class="mb-4 flex flex-wrap items-center gap-2">
+        <a class="btn btn-outline btn-icon" href="{{ nav_url_template|replace('__DATE__', prev_day.isoformat()) }}" aria-label="Previous day">{{ icon("chevron-left") }}</a>
+        <h2 class="min-w-36 text-center text-lg font-semibold tabular" aria-live="polite">{{ day|date(with_year=true) }}</h2>
+        <a class="btn btn-outline btn-icon" href="{{ nav_url_template|replace('__DATE__', next_day.isoformat()) }}" aria-label="Next day">{{ icon("chevron-right") }}</a>
+        {% if not is_today %}<a class="btn btn-ghost" href="{{ nav_url_template|replace('__DATE__', '') }}">Today</a>{% endif %}
+      </div>
+
+      {% if timeline.closed_message %}
+      <div class="hatched flex min-h-28 items-center justify-center rounded-lg p-6 text-center font-medium text-muted-foreground">{{ timeline.closed_message }}</div>
+      {% else %}
+      <div data-timeline data-slots="{{ n }}" data-start-minute="{{ timeline.start_minute }}" data-slot-minutes="15"
+        data-max-slots="{{ max_duration_min // 15 }}">
+        <p id="tl-help" class="sr-only">Use the arrow keys to move the selection by 15 minutes, Shift plus arrows to resize it, and Enter to book. The start and end fields below do the same.</p>
+
+        {# Desktop: horizontal day timeline #}
+        <div class="hidden overflow-x-auto pb-2 lg:block">
+          <div style="min-width: {{ n * 14 + 96 }}px">
+            <div class="flex">
+              <div class="w-24 shrink-0"></div>
+              <div class="grid flex-1 text-[11px] text-muted-foreground tabular" style="grid-template-columns: repeat({{ n }}, minmax(0, 1fr))">
+                {% for i, label in timeline.hour_marks %}<span style="grid-column: {{ i + 1 }} / span 4" class="border-l border-border pl-1">{{ label }}</span>{% endfor %}
+              </div>
+            </div>
+            <div class="mt-1 flex items-stretch">
+              <div class="flex w-24 shrink-0 items-center pr-2 text-xs font-medium">All units</div>
+              <div class="tl-track relative flex-1 cursor-crosshair rounded-md border border-border" data-track data-axis="x"
+                tabindex="0" role="group" aria-label="Availability for {{ eq_type.name }}. Drag to select a time." aria-describedby="tl-help">
+                <div class="grid h-12" style="grid-template-columns: repeat({{ n }}, minmax(0, 1fr))">
+                  {% for s in timeline.summary %}
+                  <div title="{{ timeline.slot_label(loop.index0) }}: {{ s.free }} of {{ s.total }} free"
+                    class="{{ 'border-l border-border' if timeline.slots[loop.index0].minute == 0 }}
+                      {% if s.level == 'all' %}bg-primary-subtle{% elif s.level == 'most' %}bg-primary-subtle/70{% elif s.level == 'few' %}bg-primary-subtle/35{% else %}hatched{% endif %}"></div>
+                  {% endfor %}
+                </div>
+                {% if timeline.now_position is not none %}<div class="pointer-events-none absolute inset-y-0 w-0.5 bg-red-500" style="left: {{ (timeline.now_position * 100)|round(2) }}%" aria-hidden="true"></div>{% endif %}
+                <div data-selection hidden class="absolute inset-y-0 z-10 flex items-center justify-between rounded-md">
+                  <span data-handle="start" class="h-full w-2 cursor-ew-resize"></span>
+                  <span data-selection-label class="pointer-events-none truncate px-1 text-[11px] font-semibold tabular"></span>
+                  <span data-handle="end" class="h-full w-2 cursor-ew-resize"></span>
+                </div>
+              </div>
+            </div>
+            <details class="mt-2" {% if booking or form.unit_id.data %}open{% endif %}>
+              <summary class="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">Show units ({{ timeline.rows|length }})</summary>
+              <div class="mt-2 space-y-1">
+                {% for row in timeline.rows %}
+                <div class="flex items-stretch">
+                  <div class="w-24 shrink-0 truncate pr-2 text-xs font-medium tabular leading-7" title="{{ row.unit.lab.name }}">{{ row.unit.asset_tag }}</div>
+                  <div class="grid h-7 flex-1 rounded border border-border bg-background" style="grid-template-columns: repeat({{ n }}, minmax(0, 1fr))"
+                    aria-label="Unit {{ row.unit.asset_tag }}">
+                    {% for seg in row.segments %}
+                    <div style="grid-column: {{ seg.start + 1 }} / span {{ seg.span }}" title="{{ seg.title }} ({{ timeline.slot_label(seg.start) }}–{{ timeline.slot_label(seg.start + seg.span) }})"
+                      class="flex min-w-0 items-center gap-1 overflow-hidden rounded-sm px-1 text-[11px]
+                        {% if seg.kind == 'booked' %}bg-slate-300 text-slate-800 dark:bg-slate-700 dark:text-slate-100
+                        {% elif seg.kind == 'own' %}border-2 border-primary bg-primary-subtle text-primary
+                        {% elif seg.kind == 'maintenance' %}stripes text-muted-foreground
+                        {% else %}hatched text-muted-foreground{% endif %}">
+                      {% if seg.kind == 'maintenance' %}{{ icon("wrench", "size-3") }}{% endif %}<span class="truncate">{{ seg.label }}</span>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            </details>
+          </div>
+        </div>
+
+        {# Mobile and tablet: vertical day column #}
+        <div class="flex gap-2 lg:hidden">
+          <div class="relative w-12 shrink-0 text-[11px] text-muted-foreground tabular" style="height: {{ n * 14 }}px" aria-hidden="true">
+            {% for i, label in timeline.hour_marks %}<span class="absolute -translate-y-1/2" style="top: {{ (i / n * 100)|round(3) }}%">{{ label }}</span>{% endfor %}
+          </div>
+          <div class="tl-track relative flex-1 rounded-md border border-border" data-track data-axis="y" style="height: {{ n * 14 }}px"
+            tabindex="0" role="group" aria-label="Availability for {{ eq_type.name }}. Tap a free time to select it." aria-describedby="tl-help">
+            <div class="grid h-full" style="grid-template-rows: repeat({{ n }}, minmax(0, 1fr))">
+              {% for s in timeline.summary %}
+              <div class="{{ 'border-t border-border' if timeline.slots[loop.index0].minute == 0 }}
+                {% if s.level == 'all' %}bg-primary-subtle{% elif s.level == 'most' %}bg-primary-subtle/70{% elif s.level == 'few' %}bg-primary-subtle/35{% else %}hatched{% endif %}"></div>
+              {% endfor %}
+            </div>
+            {% if timeline.now_position is not none %}<div class="pointer-events-none absolute inset-x-0 h-0.5 bg-red-500" style="top: {{ (timeline.now_position * 100)|round(2) }}%" aria-hidden="true"></div>{% endif %}
+            <div data-selection hidden class="absolute inset-x-0 z-10 flex flex-col items-center justify-between rounded-md">
+              <span data-handle="start" class="-mt-3 grid h-6 w-full place-items-center"><span class="h-1.5 w-10 rounded-full bg-primary"></span></span>
+              <span data-selection-label class="pointer-events-none text-xs font-semibold tabular"></span>
+              <span data-handle="end" class="-mb-3 grid h-6 w-full place-items-center"><span class="h-1.5 w-10 rounded-full bg-primary"></span></span>
+            </div>
+          </div>
+        </div>
+
+        <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Legend">
+          <li class="flex items-center gap-1.5"><span class="size-3 rounded-sm bg-primary-subtle border border-border"></span>Free</li>
+          <li class="flex items-center gap-1.5"><span class="hatched size-3 rounded-sm"></span>None free / closed</li>
+          <li class="hidden items-center gap-1.5 lg:flex"><span class="size-3 rounded-sm bg-slate-300 dark:bg-slate-700"></span>Booked</li>
+          <li class="hidden items-center gap-1.5 lg:flex"><span class="size-3 rounded-sm border-2 border-primary"></span>Yours</li>
+          <li class="hidden items-center gap-1.5 lg:flex"><span class="stripes size-3 rounded-sm border border-border"></span>Maintenance</li>
+          {% if timeline.now_position is not none %}<li class="flex items-center gap-1.5"><span class="h-3 w-0.5 bg-red-500"></span>Now</li>{% endif %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="mt-5 grid gap-4 border-t border-border pt-5 sm:grid-cols-3">
+        {{ field(form.date, **{"data-field": "date"}) }}
+        {{ field(form.start, **{"data-field": "start"}) }}
+        {{ field(form.end, **{"data-field": "end"}) }}
+        {{ field(form.unit_id, class="sm:col-span-3", **{"data-field": "unit"}) }}
+        {{ field(form.purpose, class="sm:col-span-3", label=("Purpose" if eq_type.purpose_required else "Purpose or notes (optional)")) }}
+      </div>
+    </div>
+
+    <aside class="sticky bottom-0 z-20 -mx-4 self-end border-t border-border bg-background p-4 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] sm:mx-0 sm:rounded-xl sm:border lg:top-6 lg:bottom-auto lg:self-start lg:bg-surface lg:p-5 lg:shadow-none"
+      aria-label="Booking summary">
+      <h2 class="hidden text-lg font-semibold lg:block">{{ "Your changes" if booking else "Summary" }}</h2>
+      <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm lg:mt-3 lg:gap-y-2">
+        <dt class="hidden text-muted-foreground lg:block">Equipment</dt><dd class="hidden font-medium lg:block">{{ eq_type.name }}</dd>
+        <dt class="text-muted-foreground">Unit</dt><dd class="truncate font-medium" data-summary="unit">{{ selected_unit_label }}</dd>
+        <dt class="text-muted-foreground">When</dt><dd class="font-medium tabular" data-summary="when">—</dd>
+        <dt class="text-muted-foreground">Duration</dt><dd class="font-medium tabular" data-summary="duration">—</dd>
+      </dl>
+      <p class="mt-3 hidden text-xs text-muted-foreground lg:block">Max {{ max_duration_label }} per booking · 15-minute steps.</p>
+      {% if eq_type.requires_approval %}
+      <p class="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">{{ icon("lock", "mt-0.5 size-3.5") }}{% if current_user.role == Role.STUDENT %}A teacher must approve student bookings for this equipment.{% else %}Needs approval for students. Staff bookings are confirmed straight away.{% endif %}</p>
+      {% endif %}
+      <ul class="mt-3 space-y-1.5 text-sm font-medium text-destructive empty:hidden" data-booking-messages role="alert">{% for v in violations %}<li class="flex items-start gap-1.5">{{ icon("triangle-alert", "mt-0.5 size-4") }}<span>{{ v.message }}</span></li>{% endfor %}</ul>
+      <p class="mt-3 text-xs text-muted-foreground" data-booking-hint hidden>Drag on the timeline or pick a start and end time.</p>
+      <button class="btn btn-primary mt-3 w-full" data-book-button>{{ submit_label }}</button>
+    </aside>
+  </div>
+</form>
+<script src="{{ url_for('static', filename='js/timeline.js') }}" defer></script>
