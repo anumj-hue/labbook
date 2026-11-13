@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header, closure_warning %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+{{ page_header(title, [("Academic calendar", url_for("admin.calendar"))]) }}
+<form method="post" action="{{ action }}" class="card max-w-2xl space-y-5 p-5 sm:p-6">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {{ closure_warning(warning) }}
+  <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <a class="btn btn-outline" href="{{ cancel_url }}">Keep it</a>
+    <button class="btn btn-destructive">{{ confirm_label }}</button>
+  </div>
+</form>
+{% endblock %}

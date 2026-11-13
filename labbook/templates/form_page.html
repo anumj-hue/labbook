@@ -1,15 +1,16 @@
 {% extends "base.html" %}
-{% from "macros.html" import form_fields, page_header, post_button %}
+{% from "macros.html" import form_fields, page_header, post_button, closure_warning %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
 {{ page_header(title, crumbs) }}
 <form method="post" class="card max-w-2xl space-y-5 p-5 sm:p-6" novalidate>
   {% if intro %}<p class="text-muted-foreground">{{ intro }}</p>{% endif %}
   {{ form.hidden_tag() }}
+  {{ closure_warning(warning) }}
   {{ form_fields(form) }}
   <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
     <a class="btn btn-outline" href="{{ cancel_url }}">Cancel</a>
-    <button class="btn btn-primary">{{ submit_label or "Save" }}</button>
+    <button class="btn {{ 'btn-destructive' if warning else 'btn-primary' }}">{% if warning %}Save and cancel {{ warning.count }} booking{{ "s" if warning.count != 1 }}{% else %}{{ submit_label or "Save" }}{% endif %}</button>
   </div>
 </form>
 {% if delete_url %}

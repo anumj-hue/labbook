@@ -65,12 +65,13 @@ def create_app(config_name: str | None = None, **overrides) -> Flask:
     from .bookings.views import bp as bookings_bp
     from .catalogue.views import bp as catalogue_bp
     from .cli import register_cli
+    from .desk.views import bp as desk_bp
     from .main.views import bp as main_bp
     from .notifications.views import bp as notifications_bp
     from .units.views import bp as units_bp
 
-    for bp in (auth_bp, main_bp, catalogue_bp, bookings_bp, approvals_bp, notifications_bp, units_bp, admin_bp,
-               api_bp):
+    for bp in (auth_bp, main_bp, catalogue_bp, bookings_bp, approvals_bp, notifications_bp, desk_bp, units_bp,
+               admin_bp, api_bp):
         app.register_blueprint(bp)
 
     register_cli(app)

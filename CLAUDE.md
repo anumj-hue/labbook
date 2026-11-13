@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository state
 
-LabBook is a Flask app for booking shared lab equipment in one department. **Slices 1–3 of 4 are built**: accounts, admin setup, catalogue, booking (picker, create/edit/cancel, My Bookings, calendar), approvals, notifications, scheduled jobs and teacher override. Slice 4 (lab desk, no-shows, maintenance UI, CSV/audit viewer) is next.
+LabBook is a Flask app for booking shared lab equipment in one department. **The MVP (slices 1–4) is built**: accounts, admin setup, catalogue, booking (picker, create/edit/cancel, My Bookings, calendar), approvals, notifications, scheduled jobs, teacher override, the Lab Tech Today desk, no-shows and suspensions, overdue alerts, maintenance (status, blocks, logs, issues), closure handling, CSV export and the audit log viewer. Post-MVP per the plan: recurring series (§4.14), waitlist (§4.18), reports/charts (§4.11), retention/anonymisation job (§4.17 FR-D2/D3), Playwright E2E, Docker.
 
 - `spec.md` is the product spec and the source of truth; requirement IDs like `FR-O4` and refs like `§7.3` come from it. `spec.html` is a rendered copy; keep it in sync if you edit `spec.md`.
 - The approved plan (structure + 4 MVP slices) is in `C:\Users\anumj\.claude\plans\memoized-gathering-duckling.md`.
@@ -63,6 +63,14 @@ Run `npm run css` after adding Tailwind classes. The compiled `labbook/static/cs
 - Teacher override (§4.7): `evaluate()` sets `Evaluation.override` when the only violations are availability codes and the booker `has_role(TEACHER)`. `create(..., override_reason=...)` marks the victim BUMPED inside the same write transaction, then inserts on that unit.
 - Notifications: call `services.notify.notify(user, kind, title, body, url_path)`. It adds the in-app row and renders the email immediately, but sends it only from the session's `after_commit` hook (dropped on rollback). Never call `send_mail` directly for booking events. Optional (†) email kinds map to user email prefs in `OPTIONAL_EMAIL_PREF`.
 - Jobs: `labbook/jobs.py` (`JOBS` registry, `tick(now)`). Daily jobs record their last run in `JobRun`. Each job commits separately and must be idempotent; tests call `tick(now=...)` directly.
+
+## Desk & maintenance (slice 4)
+
+- `services/desk.py`: `desk_day()` (Today groups), `check_out` / `check_in` (CheckEvent + CheckAccessory rows; short items become a missing flag, an ISSUE log and notifications), `resolve_missing`, `mark_no_show` / `reverse_no_show` (NoShowRecord, suspension after `no_show_limit` in `no_show_window_days`, students only), plus the `detect_no_shows` and `detect_overdue` jobs.
+- `services/maintenance.py`: unit status changes and maintenance blocks call `relocate_or_cancel()`, which moves upcoming not-yet-checked-out bookings to another free unit or cancels them with a notice. `apply_status()` assumes the caller holds the write lock; `set_unit_status()` takes it. Unit status is never edited through the unit form.
+- `services/closures.py` + `admin/views._closure_gate()` (FR-T4): holiday, term and lab-hours saves flush, find now-invalid future bookings, and roll back with a "N bookings will be cancelled" warning until the form re-posts `confirm_cancel=<N>`.
+- `services/reports.py`: `bookings_query()` is shared by `/bookings/all` and `/api/export/bookings.csv`, so their counts match (acceptance #10). CSV free text is guarded against formula injection.
+
 - **Migrations that alter `booking` or `maintenance_block`** (SQLite batch mode rebuilds the table) drop the overlap triggers. Recreate them at the end of the migration, as the slice 3 migration does with `_recreate_triggers()`; `tests/test_migrations.py` catches it if you forget.
 
 **SQLite replacement for the §7.3 exclusion constraints:** booking writes run in `BEGIN IMMEDIATE` transactions, plus `BEFORE INSERT/UPDATE` triggers (`models/triggers.py`) on `booking` and `maintenance_block` that `RAISE(ABORT)` on overlap. `ACTIVE_STATUSES` is defined once in `models/booking.py` and the trigger SQL is generated from it; the slice 2 migration imports `CREATE_STATEMENTS`. If the active statuses ever change, add a migration that drops and recreates the triggers. `tests/test_migrations.py` checks that migrated and `create_all` databases have the same triggers.

@@ -27,6 +27,15 @@ CANCELLED_BY_STAFF = "cancelled_by_staff"
 BUMPED = "bumped"
 REMINDER = "reminder"
 DIGEST = "digest"
+UNIT_REASSIGNED = "unit_reassigned"
+CLOSURE_CANCELLED = "closure_cancelled"
+NO_SHOW = "no_show"
+SUSPENSION_STARTED = "suspension_started"
+SUSPENSION_LIFTED = "suspension_lifted"
+OVERDUE = "overdue"
+NEXT_BOOKING_AT_RISK = "next_booking_at_risk"
+ISSUE_REPORTED = "issue_reported"
+ACCESSORIES_MISSING = "accessories_missing"
 
 OPTIONAL_EMAIL_PREF = {REMINDER: "reminders", DIGEST: "digest"}
 
@@ -82,4 +91,16 @@ def approvers() -> list[User]:
     return list(db.session.scalars(
         select(User).where(User.role.in_((Role.TEACHER, Role.ADMIN)), User.active.is_(True),
                            User.anonymised_at.is_(None))
+    ))
+
+
+def lab_techs() -> list[User]:
+    """Recipients of desk alerts; falls back to Admins when there are no Lab Techs."""
+    techs = list(db.session.scalars(
+        select(User).where(User.role == Role.LAB_TECH, User.active.is_(True), User.anonymised_at.is_(None))
+    ))
+    if techs:
+        return techs
+    return list(db.session.scalars(
+        select(User).where(User.role == Role.ADMIN, User.active.is_(True), User.anonymised_at.is_(None))
     ))

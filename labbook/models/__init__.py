@@ -1,5 +1,14 @@
 from . import triggers  # noqa: F401  (registers the overlap triggers with the metadata)
-from .booking import ACTIVE_STATUSES, HOURS_STATUSES, QUOTA_STATUSES, Booking, BookingStatus, MaintenanceBlock
+from .booking import (
+    ACTIVE_STATUSES,
+    HOURS_STATUSES,
+    OVERDUE_GRACE,
+    QUOTA_STATUSES,
+    Booking,
+    BookingStatus,
+    MaintenanceBlock,
+)
+from .desk import CheckAccessory, CheckEvent, CheckKind, Condition, LogKind, MaintenanceLog, NoShowRecord
 from .equipment import Accessory, EquipmentType, EquipmentUnit, UnitStatus
 from .lab import WEEKDAY_LABELS, WEEKDAYS, Holiday, Lab, Term
 from .notification import JobRun, Notification
@@ -17,6 +26,14 @@ __all__ = [
     "WEEKDAYS",
     "WEEKDAY_LABELS",
     "Accessory",
+    "CheckAccessory",
+    "CheckEvent",
+    "CheckKind",
+    "Condition",
+    "LogKind",
+    "MaintenanceLog",
+    "NoShowRecord",
+    "OVERDUE_GRACE",
     "AuditLog",
     "AuthAttempt",
     "EquipmentType",

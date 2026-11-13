@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum
 
 from sqlalchemy import Boolean, CheckConstraint, Enum, ForeignKey, Index, String, Text
@@ -46,6 +46,8 @@ ACTIVE_STATUSES: tuple[BookingStatus, ...] = (
     BookingStatus.CHECKED_OUT,
 )
 
+OVERDUE_GRACE = timedelta(minutes=15)
+
 # Statuses that count towards a student's "active bookings" quota (spec §4.6).
 QUOTA_STATUSES: tuple[BookingStatus, ...] = (BookingStatus.PENDING, BookingStatus.CONFIRMED)
 
@@ -91,6 +93,8 @@ class Booking(db.Model):
     is_late_cancel: Mapped[bool] = mapped_column(Boolean, default=False)
     bumped_by_booking_id: Mapped[int | None] = mapped_column(ForeignKey("booking.id", ondelete="SET NULL"))
     reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    accessories_missing: Mapped[bool] = mapped_column(Boolean, default=False)
+    overdue_notified_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
 
@@ -108,6 +112,11 @@ class Booking(db.Model):
     @property
     def has_started(self) -> bool:
         return self.starts_at <= utcnow()
+
+    @property
+    def is_overdue(self) -> bool:
+        """Still checked out 15 minutes after the end (FR-K4)."""
+        return self.status is BookingStatus.CHECKED_OUT and utcnow() > self.ends_at + OVERDUE_GRACE
 
     @property
     def can_change(self) -> bool:

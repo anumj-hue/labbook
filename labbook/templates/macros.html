@@ -133,3 +133,18 @@
 <div class="{{ class }} grid w-full place-items-center rounded-lg bg-primary-subtle text-primary">{{ icon("flask-conical", "size-10") }}</div>
 {% endif %}
 {% endmacro %}
+
+{# FR-T4: shown when saving would cancel future bookings; re-posting with confirm_cancel confirms. #}
+{% macro closure_warning(warning) %}
+{% if warning %}
+<div class="rounded-lg border border-amber-400 bg-amber-50 p-4 text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100" role="alert">
+  <p class="flex items-start gap-2 font-semibold">{{ icon("triangle-alert", "mt-0.5 size-4") }}{{ warning.count }} booking{{ "s" if warning.count != 1 }} will be cancelled</p>
+  <p class="mt-1 text-sm">They no longer fit the lab's opening hours. The bookers will be told why.</p>
+  <ul class="mt-2 list-disc space-y-0.5 pl-5 text-sm">
+    {% for item in warning["items"] %}<li>{{ item }}</li>{% endfor %}
+    {% if warning.count > warning["items"]|length %}<li>and {{ warning.count - warning["items"]|length }} more</li>{% endif %}
+  </ul>
+  <input type="hidden" name="confirm_cancel" value="{{ warning.count }}">
+</div>
+{% endif %}
+{% endmacro %}

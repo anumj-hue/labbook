@@ -143,3 +143,7 @@ def lift_suspension(actor: User, user: User) -> None:
     before = audit.snapshot(user, *USER_AUDIT_FIELDS)
     user.suspended_until = None
     audit.record(actor, "User", user.id, "lift_suspension", before, audit.snapshot(user, *USER_AUDIT_FIELDS))
+    from . import notify  # local import: notify imports availability, which imports models only
+
+    notify.notify(user, notify.SUSPENSION_LIFTED, "You can book again",
+                  f"{actor.name} lifted your booking suspension.", notify.url_path("catalogue.index"))

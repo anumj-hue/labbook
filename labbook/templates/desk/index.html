@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, booking_status_badge %}
+{% block title %}Today{% endblock %}
+{% macro row(b, kind) %}
+{% set s = b.starts_at.astimezone(tz) %}{% set e = b.ends_at.astimezone(tz) %}
+<li class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center {{ 'bg-red-50 dark:bg-red-950/40' if kind == 'overdue' }}">
+  <a href="{{ url_for('bookings.detail', booking_id=b.id) }}" class="min-w-0 flex-1">
+    <span class="flex flex-wrap items-center gap-2">
+      <span class="text-lg font-semibold tabular">{{ "%02d:%02d"|format(s.hour, s.minute) }}–{{ "%02d:%02d"|format(e.hour, e.minute) }}</span>
+      {% if kind == "overdue" %}<span class="badge bg-red-600 text-white">{{ icon("triangle-alert", "size-3") }}Overdue</span>
+      {% else %}{{ booking_status_badge(b.status) }}{% endif %}
+      {% if b.accessories_missing %}<span class="badge bg-amber-500 text-amber-950">{{ icon("package-x", "size-3") }}Accessories missing</span>{% endif %}
+    </span>
+    <span class="mt-1 block font-medium">{{ b.user.name if b.user else "Anonymised user" }}</span>
+    <span class="block text-muted-foreground"><span class="font-medium tabular text-foreground">{{ b.unit.asset_tag }}</span> · {{ b.type.name }}{% if kind == "overdue" and b.ends_at.astimezone(tz).date() != today %} · due {{ b.ends_at|date }}{% endif %}</span>
+  </a>
+  <div class="flex shrink-0 flex-wrap gap-2">
+    {% if kind == "due_out" %}
+      <a class="btn btn-primary h-12 px-5 text-base" href="{{ url_for('desk.check_out', booking_id=b.id) }}">{{ icon("package-open", "size-5") }}Check out</a>
+      {% if b.starts_at <= now %}
+      <form method="post" action="{{ url_for('desk.action', booking_id=b.id, action='no-show') }}" data-confirm="Mark {{ b.user.name if b.user else 'this booking' }} as a no-show? The slot is released." data-confirm-label="Mark no-show">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline h-12">{{ icon("user-x", "size-5") }}No-show</button>
+      </form>
+      {% endif %}
+    {% elif kind in ("checked_out", "overdue") %}
+      <a class="btn btn-primary h-12 px-5 text-base" href="{{ url_for('desk.check_in', booking_id=b.id) }}">{{ icon("check-check", "size-5") }}Check in</a>
+    {% elif b.status == BookingStatus.NO_SHOW %}
+      <form method="post" action="{{ url_for('desk.action', booking_id=b.id, action='reverse-no-show') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-ghost h-12">{{ icon("undo-2", "size-5") }}Reverse no-show</button>
+      </form>
+    {% endif %}
+  </div>
+</li>
+{% endmacro %}
+{% macro group(title, items, kind, empty) %}
+<section aria-labelledby="h-{{ kind }}" class="mb-6">
+  <h2 id="h-{{ kind }}" class="mb-2 flex items-center gap-2 text-lg font-semibold {{ 'text-red-700 dark:text-red-400' if kind == 'overdue' }}">{{ title }} <span class="text-sm font-normal text-muted-foreground tabular">{{ items|length }}</span></h2>
+  {% if items %}
+  <ul class="card divide-y divide-border overflow-hidden {{ 'border-red-300 dark:border-red-900' if kind == 'overdue' }}">{% for b in items %}{{ row(b, kind) }}{% endfor %}</ul>
+  {% else %}<p class="text-muted-foreground">{{ empty }}</p>{% endif %}
+</section>
+{% endmacro %}
+{% block content %}
+{{ page_header("Today", subtitle=today|date(with_year=true) ~ " · refreshes every minute") }}
+
+{% if day.overdue %}{{ group("Overdue", day.overdue, "overdue", "") }}{% endif %}
+
+{% if day.missing %}
+<section aria-labelledby="h-missing" class="mb-6">
+  <h2 id="h-missing" class="mb-2 text-lg font-semibold">Missing accessories <span class="text-sm font-normal text-muted-foreground tabular">{{ day.missing|length }}</span></h2>
+  <ul class="card divide-y divide-border overflow-hidden">
+    {% for b in day.missing %}
+    <li class="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
+      <a class="min-w-0 flex-1" href="{{ url_for('bookings.detail', booking_id=b.id) }}"><span class="font-medium tabular">{{ b.unit.asset_tag }}</span> · {{ b.user.name if b.user else "Anonymised user" }} <span class="block text-sm text-muted-foreground">{{ b.ends_at|date }}</span></a>
+      <form method="post" action="{{ url_for('desk.action', booking_id=b.id, action='resolve-missing') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline h-12">{{ icon("check") }}Returned / replaced</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{{ group("Due to check out", day.due_out, "due_out", "Nothing waiting to go out.") }}
+{{ group("Checked out", day.checked_out, "checked_out", "Nothing out right now.") }}
+{{ group("Done", day.done, "done", "Nothing finished yet today.") }}
+
+<script>
+  // Spec §6.9: refresh every 60 s, unless someone is typing or a dialog is open.
+  setInterval(() => {
+    const busy = document.activeElement?.matches("input, textarea, select") || document.querySelector("dialog[open]");
+    if (!busy && document.visibilityState === "visible") window.location.reload();
+  }, 60000);
+</script>
+{% endblock %}

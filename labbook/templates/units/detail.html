@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, unit_status_badge, booking_status_badge, post_button %}
+{% block title %}{{ unit.asset_tag }}{% endblock %}
+{% macro local(dt) -%}{%- set l = dt.astimezone(tz) -%}{{ l|date }}, {{ "%02d:%02d"|format(l.hour, l.minute) }}{%- endmacro %}
+{% block content %}
+{% call page_header(unit.asset_tag, [("Units & Maintenance", url_for("units.index"))], unit.type.name ~ " · " ~ unit.lab.name) %}
+  <a class="btn btn-outline" href="{{ url_for('units.edit', unit_id=unit.id) }}">{{ icon("pencil") }}Edit details</a>
+{% endcall %}
+
+<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+  <div class="space-y-6">
+    <section class="card p-5" aria-labelledby="h-status">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="h-status" class="text-lg font-semibold">Status</h2>
+        {{ unit_status_badge(unit.status) }}
+      </div>
+      <form method="post" action="{{ url_for('units.set_status', unit_id=unit.id) }}" class="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr_auto] sm:items-end"
+        data-confirm="Change {{ unit.asset_tag }}'s status? Upcoming bookings on it will move to another unit or be cancelled, and the bookers told." data-confirm-label="Change status">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+          <label class="label" for="status">New status</label>
+          <select id="status" name="status" class="input">
+            {% for s in statuses %}<option value="{{ s.value }}" {{ "selected" if s == unit.status }}>{{ s.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="label" for="status-reason">Reason</label>
+          <input id="status-reason" name="reason" class="input" maxlength="300" placeholder="e.g. Channel 2 noisy">
+        </div>
+        <button class="btn btn-outline">Update</button>
+      </form>
+    </section>
+
+    <section class="card overflow-hidden" aria-labelledby="h-log">
+      <h2 id="h-log" class="p-5 pb-3 text-lg font-semibold">Maintenance log</h2>
+      {% if logs %}
+      <ol class="divide-y divide-border border-t border-border">
+        {% for entry in logs %}
+        <li class="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start">
+          <div class="min-w-0 flex-1">
+            <p class="flex flex-wrap items-center gap-2">
+              <span class="badge {{ 'bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300' if entry.kind.value in ('ISSUE', 'OUT_OF_SERVICE') else 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' }}">{{ entry.kind.label }}</span>
+              {% if entry.is_open_issue %}<span class="badge border border-red-400 text-red-700 dark:text-red-300">Open</span>{% elif entry.kind.value == "ISSUE" %}<span class="badge border border-border text-muted-foreground">Resolved</span>{% endif %}
+              <span class="text-xs text-muted-foreground">{{ local(entry.created_at) }} · {{ entry.reported_by.name if entry.reported_by else "System" }}</span>
+            </p>
+            <p class="mt-1 whitespace-pre-line">{{ entry.notes }}</p>
+            {% if entry.booking_id %}<a class="link text-xs" href="{{ url_for('bookings.detail', booking_id=entry.booking_id) }}">Booking #{{ entry.booking_id }}</a>{% endif %}
+          </div>
+          {% if entry.is_open_issue %}{{ post_button(url_for("units.resolve_log", log_id=entry.id), "Resolve", icon_name="check") }}{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}<p class="px-5 pb-5 text-muted-foreground">Nothing logged yet.</p>{% endif %}
+      <form method="post" action="{{ url_for('units.add_log', unit_id=unit.id) }}" class="grid gap-3 border-t border-border p-5 sm:grid-cols-[10rem_1fr_auto] sm:items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+          <label class="label" for="log-kind">Entry</label>
+          <select id="log-kind" name="kind" class="input">{% for k in log_kinds %}<option value="{{ k.value }}">{{ k.label }}</option>{% endfor %}</select>
+        </div>
+        <div>
+          <label class="label" for="log-notes">Notes</label>
+          <input id="log-notes" name="notes" class="input" maxlength="2000" required>
+        </div>
+        <button class="btn btn-outline">{{ icon("plus") }}Add</button>
+      </form>
+    </section>
+  </div>
+
+  <aside class="space-y-6">
+    <section class="card p-5" aria-labelledby="h-blocks">
+      <h2 id="h-blocks" class="text-lg font-semibold">Block time</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Nobody can book a blocked unit. Clashing bookings move to another unit or are cancelled.</p>
+      {% if blocks %}
+      <ul class="mt-3 space-y-2">
+        {% for b in blocks %}
+        <li class="stripes flex items-start justify-between gap-2 rounded-lg border border-border p-2.5 text-sm">
+          <span><span class="flex items-center gap-1 font-medium">{{ icon("wrench", "size-3.5") }}{{ b.reason }}</span><span class="tabular text-muted-foreground">{{ local(b.starts_at) }} – {{ local(b.ends_at) }}</span></span>
+          {{ post_button(url_for("units.delete_block", block_id=b.id), "Remove", class="btn btn-ghost btn-sm", confirm="Remove this maintenance block?", confirm_label="Remove") }}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <form method="post" action="{{ url_for('units.add_block', unit_id=unit.id) }}" class="mt-4 space-y-3" data-confirm="Add this block? Clashing bookings will be moved or cancelled." data-confirm-label="Add block">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div><label class="label" for="b-start">From</label><input id="b-start" type="datetime-local" step="900" name="starts_at" class="input" required></div>
+        <div><label class="label" for="b-end">To</label><input id="b-end" type="datetime-local" step="900" name="ends_at" class="input" required></div>
+        <div><label class="label" for="b-reason">Reason</label><input id="b-reason" name="reason" class="input" maxlength="200" placeholder="e.g. Annual calibration" required></div>
+        <fieldset class="space-y-1.5 text-sm">
+          <legend class="label">Applies to</legend>
+          <label class="flex items-center gap-2"><input type="radio" name="scope" value="unit" checked class="size-4"> Only {{ unit.asset_tag }}</label>
+          <label class="flex items-center gap-2"><input type="radio" name="scope" value="type" class="size-4"> Every unit of {{ unit.type.name }}</label>
+        </fieldset>
+        <button class="btn btn-outline w-full">{{ icon("wrench") }}Add block</button>
+      </form>
+    </section>
+
+    <section class="card p-5" aria-labelledby="h-upcoming">
+      <h2 id="h-upcoming" class="text-lg font-semibold">Upcoming bookings</h2>
+      {% if upcoming %}
+      <ul class="mt-3 divide-y divide-border">
+        {% for b in upcoming %}
+        <li><a class="flex items-center justify-between gap-2 py-2 hover:text-primary" href="{{ url_for('bookings.detail', booking_id=b.id) }}">
+          <span class="min-w-0"><span class="block truncate">{{ b.user.name if b.user else "Anonymised user" }}</span><span class="block text-xs text-muted-foreground tabular">{{ local(b.starts_at) }}</span></span>
+          {{ booking_status_badge(b.status) }}</a></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="mt-2 text-muted-foreground">None.</p>{% endif %}
+    </section>
+
+    <dl class="card space-y-2 p-5 text-sm">
+      <div class="flex justify-between gap-3"><dt class="text-muted-foreground">Serial</dt><dd class="tabular">{{ unit.serial_no or "—" }}</dd></div>
+      <div class="flex justify-between gap-3"><dt class="text-muted-foreground">Lab</dt><dd>{{ unit.lab.name }}</dd></div>
+      {% if unit.notes %}<div><dt class="text-muted-foreground">Notes</dt><dd class="mt-1 whitespace-pre-line">{{ unit.notes }}</dd></div>{% endif %}
+    </dl>
+  </aside>
+</div>
+{% endblock %}

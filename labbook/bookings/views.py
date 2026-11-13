@@ -10,6 +10,7 @@ from ..models import (
     ACTIVE_STATUSES,
     Booking,
     BookingStatus,
+    CheckEvent,
     EquipmentType,
     EquipmentUnit,
     Lab,
@@ -18,7 +19,7 @@ from ..models import (
 )
 from ..rules import format_minutes
 from ..services import bookings as svc
-from ..services import settings, timeline
+from ..services import maintenance, reports, settings, timeline
 from ..services.availability import in_service_units, type_timezone
 from ..timeutil import default_tz, fmt_date, fmt_datetime, fmt_time, utcnow
 from .forms import BookingForm, CancelForm
@@ -212,7 +213,9 @@ def detail(booking_id: int):
     is_owner = booking.user_id == current_user.id
     staff_can_cancel = (not is_owner and current_user.has_role(Role.LAB_TECH) and not booking.has_started
                         and booking.status in (BookingStatus.PENDING, BookingStatus.CONFIRMED))
-    return render_template("bookings/detail.html", booking=booking, tz=tz, cancel_form=CancelForm(),
+    checks = db.session.scalars(select(CheckEvent).where(CheckEvent.booking_id == booking.id)
+                                .order_by(CheckEvent.at)).all()
+    return render_template("bookings/detail.html", booking=booking, tz=tz, cancel_form=CancelForm(), checks=checks,
                            is_owner=is_owner, staff_can_cancel=staff_can_cancel,
                            can_decide=booking.status is BookingStatus.PENDING and current_user.has_role(Role.TEACHER),
                            just_created=request.args.get("new") == "1")
@@ -286,6 +289,48 @@ def undo_cancel(booking_id: int):
     db.session.commit()
     flash("Cancellation undone. Your booking is back.", "success")
     return redirect(url_for("bookings.detail", booking_id=booking.id))
+
+
+@bp.post("/bookings/<int:booking_id>/report-issue")
+@login_required
+def report_issue(booking_id: int):
+    """FR-M4: the booker reports a problem with the unit."""
+    booking = db.get_or_404(Booking, booking_id)
+    if booking.user_id != current_user.id:
+        abort(404)
+    try:
+        maintenance.report_issue(booking, current_user, request.form.get("notes", ""))
+    except svc.BookingRefused as refused:
+        db.session.rollback()
+        flash(refused.violations[0].message, "error")
+    else:
+        db.session.commit()
+        flash("Thanks. The lab techs have been told.", "success")
+    return redirect(url_for("bookings.detail", booking_id=booking.id))
+
+
+@bp.get("/bookings/all")
+@login_required
+def all_bookings():
+    """Staff list of every booking in a date range, with CSV export (FR-R6)."""
+    if current_user.role is Role.STUDENT:
+        abort(403)
+    tz = default_tz()
+    today = utcnow().astimezone(tz).date()
+    start = _parse_date(request.args.get("from"), today - timedelta(days=today.weekday()))
+    end = _parse_date(request.args.get("to"), start + timedelta(days=6))
+    if end < start:
+        start, end = end, start
+    status = request.args.get("status", "")
+    type_id = request.args.get("type", type=int)
+    stmt = reports.bookings_query(start, end, BookingStatus(status) if status in BookingStatus.__members__ else None,
+                                  type_id)
+    page = db.paginate(stmt, per_page=50, error_out=False)
+    return render_template(
+        "bookings/all.html", page=page, start=start, end=end, status=status, type_id=type_id, tz=tz,
+        types=db.session.scalars(select(EquipmentType).order_by(EquipmentType.name)).all(),
+        can_export=current_user.has_role(Role.LAB_TECH),
+    )
 
 
 # --- My Bookings ----------------------------------------------------------------------------------

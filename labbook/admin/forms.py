@@ -171,7 +171,6 @@ class UnitForm(FlaskForm):
     lab_id = SelectField("Lab", coerce=int)
     asset_tag = StringField("Asset tag", [DataRequired(), Length(max=40)], description="e.g. OSC-03")
     serial_no = StringField("Serial number", [Optional(), Length(max=80)])
-    status = SelectField("Status", choices=UNIT_STATUS_CHOICES, coerce=UnitStatus, default=UnitStatus.AVAILABLE.value)
     notes = TextAreaField("Notes", [Optional(), Length(max=2000)])
 
 

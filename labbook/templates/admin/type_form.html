@@ -81,7 +81,7 @@
       <ul class="mt-3 divide-y divide-border">
         {% for u in eq_type.units %}
         <li class="flex items-center justify-between gap-2 py-2">
-          <a class="font-medium tabular hover:text-primary" href="{{ url_for('units.edit', unit_id=u.id) }}">{{ u.asset_tag }}</a>
+          <a class="font-medium tabular hover:text-primary" href="{{ url_for('units.detail', unit_id=u.id) }}">{{ u.asset_tag }}</a>
           {{ unit_status_badge(u.status) }}
         </li>
         {% endfor %}

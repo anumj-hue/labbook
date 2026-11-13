@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, booking_status_badge, empty_state, pagination %}
+{% block title %}All bookings{% endblock %}
+{% block content %}
+{% call page_header("All bookings", subtitle="Every booking starting in the date range, any status.") %}
+  {% if can_export %}<a class="btn btn-outline" href="{{ url_for('api.export_bookings', **{'from': start.isoformat(), 'to': end.isoformat()}) }}">{{ icon("download") }}Export CSV</a>{% endif %}
+{% endcall %}
+
+<form method="get" class="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[auto_auto_1fr_1fr_auto] lg:items-end" aria-label="Filter bookings">
+  <div><label class="label" for="from">From</label><input id="from" type="date" name="from" value="{{ start.isoformat() }}" class="input"></div>
+  <div><label class="label" for="to">To</label><input id="to" type="date" name="to" value="{{ end.isoformat() }}" class="input"></div>
+  <div>
+    <label class="label" for="status">Status</label>
+    <select id="status" name="status" class="input">
+      <option value="">Any status</option>
+      {% for s in BookingStatus %}<option value="{{ s.value }}" {{ "selected" if s.value == status }}>{{ s.label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="label" for="type">Equipment</label>
+    <select id="type" name="type" class="input">
+      <option value="">All equipment</option>
+      {% for t in types %}<option value="{{ t.id }}" {{ "selected" if t.id == type_id }}>{{ t.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-outline">Apply</button>
+</form>
+
+<p class="mb-3 text-muted-foreground tabular" data-total="{{ page.total }}">{{ page.total }} booking{{ "s" if page.total != 1 }}</p>
+{% if page.items %}
+<div class="card overflow-x-auto">
+  <table class="data-table min-w-[48rem]">
+    <thead><tr><th scope="col">When</th><th scope="col">Equipment</th><th scope="col">Unit</th><th scope="col">Booker</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+      {% for b in page.items %}
+      {% set s = b.starts_at.astimezone(tz) %}{% set e = b.ends_at.astimezone(tz) %}
+      <tr>
+        <td class="tabular"><a class="hover:text-primary" href="{{ url_for('bookings.detail', booking_id=b.id) }}">{{ s|date }} · {{ "%02d:%02d"|format(s.hour, s.minute) }}–{{ "%02d:%02d"|format(e.hour, e.minute) }}</a></td>
+        <td>{{ b.type.name }}</td>
+        <td class="tabular text-muted-foreground">{{ b.unit.asset_tag }}</td>
+        <td>{{ b.user.name if b.user else "Anonymised user" }} <span class="text-xs text-muted-foreground">{{ b.user_role_at_booking.label }}</span></td>
+        <td><span class="flex flex-wrap gap-1">{{ booking_status_badge(b.status) }}{% if b.is_late_cancel %}<span class="badge border border-border text-muted-foreground">Late</span>{% endif %}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ pagination(page, "bookings.all_bookings", request.args.to_dict()) }}
+{% else %}
+{{ empty_state("No bookings in this range.", None, None, "calendar") }}
+{% endif %}
+{% endblock %}

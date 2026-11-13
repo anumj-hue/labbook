@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header %}
+{% block title %}{{ "Check out" if kind == "out" else "Check in" }} {{ booking.unit.asset_tag }}{% endblock %}
+{% block content %}
+{% set out = kind == "out" %}
+{% set s = booking.starts_at.astimezone(tz) %}{% set e = booking.ends_at.astimezone(tz) %}
+{{ page_header(("Check out " if kind == "out" else "Check in ") ~ booking.unit.asset_tag, [("Today", url_for("desk.index"))],
+   (booking.user.name if booking.user else "Anonymised user") ~ " · " ~ booking.type.name ~ " · " ~ "%02d:%02d–%02d:%02d"|format(s.hour, s.minute, e.hour, e.minute)) }}
+
+<form method="post" class="max-w-2xl space-y-6" data-check-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if error %}<p class="rounded-lg border border-destructive/40 p-3 font-medium text-destructive" role="alert">{{ error }}</p>{% endif %}
+
+  <fieldset class="card p-5">
+    <legend class="sr-only">Condition</legend>
+    <h2 class="mb-3 text-lg font-semibold" aria-hidden="true">Condition</h2>
+    <div class="grid grid-cols-3 gap-2">
+      {% for value, label, ic, cls in (("GOOD", "Good", "circle-check", "peer-checked:border-green-600 peer-checked:bg-green-50 dark:peer-checked:bg-green-950"),
+                                        ("MINOR", "Minor issue", "info", "peer-checked:border-amber-500 peer-checked:bg-amber-50 dark:peer-checked:bg-amber-950"),
+                                        ("DAMAGED", "Damaged", "triangle-alert", "peer-checked:border-red-600 peer-checked:bg-red-50 dark:peer-checked:bg-red-950")) %}
+      <label class="relative">
+        <input type="radio" name="condition" value="{{ value }}" class="peer sr-only" {{ "checked" if (request.form.get("condition") or "GOOD") == value }} data-condition>
+        <span class="flex min-h-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-border p-3 text-center font-medium peer-focus-visible:ring-2 peer-focus-visible:ring-primary {{ cls }}">{{ icon(ic, "size-5") }}{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% if not out %}
+    <label class="mt-4 flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 p-3 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-200" data-damaged-only hidden>
+      <input type="checkbox" name="out_of_service" value="1" class="mt-0.5 size-5" checked>
+      <span><span class="font-semibold">Put {{ booking.unit.asset_tag }} out of service</span><span class="block text-sm">Its later bookings move to another unit, or are cancelled with a notice.</span></span>
+    </label>
+    {% endif %}
+  </fieldset>
+
+  <fieldset class="card p-5">
+    <legend class="sr-only">Accessories</legend>
+    <h2 class="text-lg font-semibold" aria-hidden="true">Accessories</h2>
+    <p class="mt-1 text-sm text-muted-foreground">{{ "Untick anything not handed over, or lower the quantity." if out else "These went out. Untick or lower anything that didn't come back." }}</p>
+    {% if items %}
+    <ul class="mt-3 space-y-2">
+      {% for accessory, qty in items %}
+      {% set prefix = "out" if out else "in" %}
+      <li class="flex items-center gap-3 rounded-lg border border-border p-3" data-item data-expected="{{ qty }}">
+        <input type="hidden" name="{{ prefix }}_tick_{{ accessory.id }}" value="0">
+        <label class="flex min-h-12 flex-1 items-center gap-3 font-medium">
+          <input type="checkbox" name="{{ prefix }}_tick_{{ accessory.id }}" value="1" class="size-6" checked data-tick>
+          {{ accessory.name }}
+        </label>
+        <label class="sr-only" for="qty-{{ accessory.id }}">Quantity of {{ accessory.name }}</label>
+        <input id="qty-{{ accessory.id }}" type="number" name="{{ prefix }}_qty_{{ accessory.id }}" value="{{ qty }}" min="0" max="{{ qty if not out else 99 }}" class="input h-12 w-20 text-center text-base tabular" data-qty>
+        <span class="w-10 text-sm text-muted-foreground tabular">/ {{ qty }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="mt-3 text-muted-foreground">No accessories for this equipment.</p>{% endif %}
+    {% if not out %}<p class="mt-3 hidden rounded-lg bg-amber-50 p-3 text-sm font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200" data-missing-note>Items marked short will be recorded as missing, and the booker and lab techs told.</p>{% endif %}
+  </fieldset>
+
+  <div class="card p-5">
+    <label class="label" for="notes">Notes</label>
+    <textarea id="notes" name="notes" class="input" rows="3" maxlength="2000">{{ request.form.get("notes", "") }}</textarea>
+  </div>
+
+  <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <a class="btn btn-outline h-12" href="{{ url_for('desk.index') }}">Cancel</a>
+    <button class="btn btn-primary h-12 px-6 text-base">{{ icon("package-open" if out else "check-check", "size-5") }}{{ "Check out" if out else "Check in" }}</button>
+  </div>
+</form>
+<script>
+  (() => {
+    const form = document.querySelector("[data-check-form]");
+    const damagedOnly = form.querySelector("[data-damaged-only]");
+    const missingNote = form.querySelector("[data-missing-note]");
+    function update() {
+      const condition = form.querySelector("[data-condition]:checked")?.value;
+      if (damagedOnly) damagedOnly.hidden = condition !== "DAMAGED";
+      let short = false;
+      form.querySelectorAll("[data-item]").forEach((row) => {
+        const tick = row.querySelector("[data-tick]");
+        const qty = row.querySelector("[data-qty]");
+        qty.disabled = !tick.checked;
+        const isShort = !tick.checked || Number(qty.value) < Number(row.dataset.expected);
+        row.classList.toggle("border-amber-400", isShort);
+        row.classList.toggle("bg-amber-50", isShort);
+        short ||= isShort;
+      });
+      if (missingNote) missingNote.classList.toggle("hidden", !short);
+    }
+    form.addEventListener("input", update);
+    form.addEventListener("change", update);
+    form.addEventListener("submit", (event) => {
+      // Disabled inputs aren't submitted; re-enable so unticked rows still post qty (treated as 0).
+      form.querySelectorAll("[data-qty]").forEach((q) => { q.disabled = false; });
+      if (missingNote && !missingNote.classList.contains("hidden") && !form.dataset.confirmed) {
+        event.preventDefault();
+        const dialog = document.getElementById("confirm-dialog");
+        dialog.querySelector("[data-confirm-message]").textContent = "Mark the short items as missing?";
+        dialog.querySelector("[data-confirm-accept]").textContent = "Mark as missing";
+        dialog.addEventListener("close", () => {
+          if (dialog.returnValue === "confirm") { form.dataset.confirmed = "1"; form.requestSubmit(); }
+        }, { once: true });
+        dialog.showModal();
+      }
+    });
+    update();
+  })();
+</script>
+{% endblock %}

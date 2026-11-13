@@ -182,7 +182,7 @@ def evaluate(req: BookingRequest, now: datetime | None = None) -> Evaluation:
     return result
 
 
-def _try_assign(booking: Booking, units: list[EquipmentUnit], values: dict, is_new: bool) -> bool:
+def try_assign(booking: Booking, units: list[EquipmentUnit], values: dict, is_new: bool) -> bool:
     """Puts the booking on the first unit the database accepts; the triggers reject overlaps.
 
     `values` are re-applied on every attempt because a rolled-back savepoint expires the object.
@@ -240,7 +240,7 @@ def create(req: BookingRequest, actor: User, override_reason: str | None = None)
             user_role_at_booking=req.user.role,
             purpose=req.purpose.strip(),
         )
-        if not _try_assign(booking, units, {}, is_new=True):
+        if not try_assign(booking, units, {}, is_new=True):
             raise BookingRefused([Violation("no_units", "No units available for this time.")])
         audit.record(actor, "Booking", booking.id, "create", None, audit.snapshot(booking, *BOOKING_AUDIT_FIELDS))
 
@@ -318,7 +318,7 @@ def reschedule(booking: Booking, starts_at: datetime, ends_at: datetime, unit_id
         back_to_pending = booking.status is BookingStatus.CONFIRMED and needs_approval(booking.user, booking.type)
         if back_to_pending:
             values.update(status=BookingStatus.PENDING, decided_by_id=None, decided_at=None, decision_reason=None)
-        if not _try_assign(booking, result.free, values, is_new=False):
+        if not try_assign(booking, result.free, values, is_new=False):
             raise BookingRefused([Violation("no_units", "No units available for this time.")])
         audit.record(actor, "Booking", booking.id, "reschedule", before,
                      audit.snapshot(booking, *BOOKING_AUDIT_FIELDS))
@@ -389,7 +389,8 @@ def expire_due(now: datetime | None = None) -> int:
 
 # --- Cancelling -----------------------------------------------------------------------------------
 
-def cancel(booking: Booking, actor: User, reason: str | None = None, now: datetime | None = None) -> Booking:
+def cancel(booking: Booking, actor: User, reason: str | None = None, now: datetime | None = None,
+           kind: str = notify.CANCELLED_BY_STAFF, title: str = "Booking cancelled by staff") -> Booking:
     """FR-C1/C2/C4: cancel before the start. Within late_cancel_minutes it's a late cancellation.
     Staff cancelling someone else's booking must give a reason, and the owner is told."""
     now = now or utcnow()
@@ -409,7 +410,7 @@ def cancel(booking: Booking, actor: User, reason: str | None = None, now: dateti
                               and booking.starts_at - now < timedelta(minutes=settings.get("late_cancel_minutes")))
     audit.record(actor, "Booking", booking.id, "cancel", before, audit.snapshot(booking, *BOOKING_AUDIT_FIELDS))
     if by_someone_else:
-        notify.notify(booking.user, notify.CANCELLED_BY_STAFF, "Booking cancelled by staff",
+        notify.notify(booking.user, kind, title,
                       f"Your booking of {booking.type.name} on {notify.when(booking)} was cancelled by "
                       f"{actor.name}.\nReason: {booking.cancel_reason}",
                       notify.booking_path(booking))

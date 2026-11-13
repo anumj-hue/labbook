@@ -19,7 +19,7 @@ from sqlalchemy import func, select
 
 from .extensions import db
 from .models import Booking, BookingStatus, JobRun
-from .services import bookings, notify
+from .services import bookings, desk, notify
 from .timeutil import default_tz, utcnow
 
 log = logging.getLogger(__name__)
@@ -74,6 +74,8 @@ def daily_digest(now: datetime) -> int:
 
 JOBS: tuple[Job, ...] = (
     Job("expire_pending", expire_pending),
+    Job("detect_no_shows", desk.detect_no_shows),
+    Job("detect_overdue", desk.detect_overdue),
     Job("send_reminders", send_reminders),
     Job("daily_digest", daily_digest, daily_at=time(7, 0)),
 )

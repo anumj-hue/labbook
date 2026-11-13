@@ -34,6 +34,7 @@ class NavItem:
 
 _STAFF_TECH = frozenset({Role.LAB_TECH})
 _APPROVERS = frozenset({Role.TEACHER})
+_STAFF = frozenset({Role.TEACHER, Role.LAB_TECH})
 
 
 def _pending_approvals() -> int:
@@ -50,13 +51,15 @@ def _unread() -> int:
 
 MAIN_NAV = (
     NavItem("Home", "main.home", "house"),
+    NavItem("Today", "desk.index", "clipboard-check", roles=_STAFF_TECH, match="desk."),
     NavItem("Equipment", "catalogue.index", "flask-conical", match="catalogue."),
     NavItem("Calendar", "bookings.calendar", "calendar"),
     NavItem("My Bookings", "bookings.index", "calendar-check", match="bookings.index"),
     NavItem("Approvals", "approvals.index", "list-checks", roles=_APPROVERS, match="approvals.",
             badge=_pending_approvals),
     NavItem("Notifications", "notifications.index", "bell", match="notifications.", badge=_unread),
-    NavItem("Units", "units.index", "wrench", roles=_STAFF_TECH, match="units."),
+    NavItem("Units & Maintenance", "units.index", "wrench", roles=_STAFF_TECH, match="units."),
+    NavItem("All bookings", "bookings.all_bookings", "list", roles=_STAFF, match="bookings.all_bookings"),
 )
 
 ADMIN_NAV = (
@@ -66,6 +69,7 @@ ADMIN_NAV = (
     NavItem("Academic calendar", "admin.calendar", "calendar-days", match="admin.calendar"),
     NavItem("Settings", "admin.settings", "settings", match="admin.settings"),
     NavItem("Privacy notice", "admin.privacy", "shield", match="admin.privacy"),
+    NavItem("Audit log", "admin.audit_log", "history", match="admin.audit"),
 )
 
 

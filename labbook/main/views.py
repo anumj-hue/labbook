@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, time, timedelta
 
 from flask import Blueprint, render_template, url_for
 from flask_login import current_user, login_required
@@ -7,17 +8,19 @@ from sqlalchemy import func, select
 from ..extensions import db
 from ..models import (
     ACTIVE_STATUSES,
+    AuditLog,
     Booking,
     BookingStatus,
     EquipmentType,
     EquipmentUnit,
     Lab,
+    LogKind,
+    MaintenanceLog,
     Role,
     Term,
     UnitStatus,
-    User,
 )
-from ..services import bookings, settings
+from ..services import bookings, desk, reports, settings
 from ..timeutil import default_tz, local_today, utcnow
 
 bp = Blueprint("main", __name__)
@@ -56,19 +59,25 @@ def home():
     recent_types = db.session.scalars(
         select(EquipmentType).where(EquipmentType.is_archived.is_(False)).order_by(EquipmentType.name).limit(6)
     ).all()
-    stats = None
+    glance = admin_week = None
     if current_user.has_role(Role.LAB_TECH):
-        count = lambda stmt: db.session.scalar(stmt)  # noqa: E731
-        stats = {
-            "units_in_service": count(select(func.count()).select_from(EquipmentUnit)
-                                      .where(EquipmentUnit.status == UnitStatus.AVAILABLE)),
-            "units_out": count(select(func.count()).select_from(EquipmentUnit)
-                               .where(EquipmentUnit.status == UnitStatus.OUT_OF_SERVICE)),
-            "types": count(select(func.count()).select_from(EquipmentType)
-                           .where(EquipmentType.is_archived.is_(False))),
+        day = desk.desk_day(local_today())
+        today_end = datetime.combine(local_today() + timedelta(days=1), time.min, default_tz())
+        glance = {
+            "due_out": len(day.due_out),
+            "due_back": sum(1 for b in day.checked_out if b.ends_at < today_end),
+            "overdue": len(day.overdue),
+            "missing": len(day.missing),
+            "units_out": db.session.scalar(select(func.count()).select_from(EquipmentUnit)
+                                           .where(EquipmentUnit.status == UnitStatus.OUT_OF_SERVICE)),
+            "issues": db.session.scalars(select(MaintenanceLog).where(MaintenanceLog.kind == LogKind.ISSUE,
+                                                                      MaintenanceLog.resolved_at.is_(None))
+                                         .order_by(MaintenanceLog.created_at.desc()).limit(5)).all(),
         }
-        if current_user.role is Role.ADMIN:
-            stats["users"] = count(select(func.count()).select_from(User).where(User.active.is_(True)))
+    recent_audit = None
+    if current_user.role is Role.ADMIN:
+        admin_week = reports.week_stats(local_today())
+        recent_audit = db.session.scalars(select(AuditLog).order_by(AuditLog.id.desc()).limit(5)).all()
     now = utcnow()
     upcoming = db.session.scalars(
         select(Booking).where(Booking.user_id == current_user.id, Booking.status.in_(ACTIVE_STATUSES),
@@ -84,6 +93,7 @@ def home():
             "items": db.session.scalars(select(Booking).where(Booking.status == BookingStatus.PENDING)
                                         .order_by(Booking.created_at).limit(5)).all(),
         }
-    return render_template("main/home.html", checklist=checklist, recent_types=recent_types, stats=stats,
+    return render_template("main/home.html", checklist=checklist, recent_types=recent_types, glance=glance,
+                           admin_week=admin_week, recent_audit=recent_audit,
                            today=local_today(), upcoming=upcoming, quota=quota, tz=default_tz(), now=now,
                            pending_mine=pending_mine, approvals=approvals)

@@ -18,6 +18,9 @@ from .models import (
     EquipmentUnit,
     Holiday,
     Lab,
+    LogKind,
+    MaintenanceBlock,
+    MaintenanceLog,
     Role,
     Term,
     UnitStatus,
@@ -162,6 +165,40 @@ def _seed_bookings(people: dict[str, User], today: date) -> None:
         ))
 
 
+def _seed_desk(people: dict[str, User], today: date) -> None:
+    """Things for the Today desk and Units & Maintenance pages, relative to now."""
+    now = utcnow().replace(second=0, microsecond=0)
+    now -= timedelta(minutes=now.minute % 15)
+    units = {u.asset_tag: u for u in db.session.scalars(select(EquipmentUnit))}
+
+    def booking(email, tag, start, end, status):
+        user, unit = people[email], units[tag]
+        db.session.add(Booking(unit_id=unit.id, type_id=unit.type_id, user_id=user.id, created_by_id=user.id,
+                               starts_at=start, ends_at=end, status=status, user_role_at_booking=user.role,
+                               purpose="Demo booking"))
+
+    booking("student2@example.edu", "OSC-04", now - timedelta(hours=3), now - timedelta(hours=1),
+            BookingStatus.CHECKED_OUT)  # overdue
+    booking("student1@example.edu", "DMM-01", now - timedelta(minutes=30), now + timedelta(minutes=90),
+            BookingStatus.CHECKED_OUT)
+    booking("teacher@example.edu", "PSU-02", now + timedelta(minutes=30), now + timedelta(minutes=90),
+            BookingStatus.CONFIRMED)
+
+    tech = people["labtech@example.edu"]
+    db.session.add_all([
+        MaintenanceLog(unit_id=units["DMM-06"].id, kind=LogKind.OUT_OF_SERVICE, notes="Display flickers.",
+                       reported_by_id=tech.id),
+        MaintenanceLog(unit_id=units["SOL-02"].id, kind=LogKind.ISSUE, notes="Tip worn, needs replacing.",
+                       reported_by_id=people["student1@example.edu"].id),
+    ])
+    holidays = {h.start_date for h in db.session.scalars(select(Holiday))}
+    day = _working_day(today, 3, holidays)
+    tz = ZoneInfo(current_app.config["DEFAULT_TIMEZONE"])
+    db.session.add(MaintenanceBlock(unit_id=units["FG-03"].id, reason="Annual calibration", created_by_id=tech.id,
+                                    starts_at=datetime.combine(day, time(9), tz),
+                                    ends_at=datetime.combine(day, time(12), tz)))
+
+
 def _clear_all_data() -> None:
     for table in reversed(db.metadata.sorted_tables):
         db.session.execute(table.delete())
@@ -216,6 +253,7 @@ def seed(reset: bool) -> None:
         db.session.add(people[email])
     db.session.flush()
     _seed_bookings(people, today)
+    _seed_desk(people, today)
 
     settings.set_value("allowed_email_domains", [], None)
     settings.mark_rules_reviewed(None)

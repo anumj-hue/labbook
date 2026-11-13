@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header, empty_state, pagination %}
+{% block title %}Audit log{% endblock %}
+{% macro changes(entry) %}
+{% set keys = ((entry.before or {}).keys()|list + (entry.after or {}).keys()|list)|unique|list %}
+{% if keys %}
+<dl class="mt-1 space-y-0.5 text-xs">
+  {% for k in keys %}
+  <div class="flex flex-wrap gap-x-1.5"><dt class="font-medium">{{ k }}:</dt>
+    <dd class="text-muted-foreground"><span class="line-through">{{ (entry.before or {}).get(k, "—") }}</span> → <span class="text-foreground">{{ (entry.after or {}).get(k, "—") }}</span></dd></div>
+  {% endfor %}
+</dl>
+{% endif %}
+{% endmacro %}
+{% block content %}
+{{ page_header("Audit log", subtitle="Every change to bookings, roles, units and settings, newest first.") }}
+
+<form method="get" class="mb-4 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]" aria-label="Filter audit log">
+  <label class="sr-only" for="entity">Entity</label>
+  <select id="entity" name="entity" class="input"><option value="">All entities</option>{% for e in entities %}<option {{ "selected" if e == entity }}>{{ e }}</option>{% endfor %}</select>
+  <label class="sr-only" for="action">Action</label>
+  <select id="action" name="action" class="input"><option value="">All actions</option>{% for a in actions %}<option {{ "selected" if a == action }}>{{ a }}</option>{% endfor %}</select>
+  <label class="sr-only" for="actor">Actor</label>
+  <input id="actor" name="actor" value="{{ actor }}" class="input" placeholder="Actor name or email">
+  <button class="btn btn-outline">Filter</button>
+</form>
+
+{% if page.items %}
+<ol class="card divide-y divide-border overflow-hidden">
+  {% for entry in page.items %}
+  <li class="flex flex-col gap-1 p-4 sm:flex-row sm:gap-4">
+    <time class="w-40 shrink-0 text-xs text-muted-foreground tabular" datetime="{{ entry.created_at.isoformat() }}">{{ entry.created_at|datetime }}</time>
+    <div class="min-w-0 flex-1">
+      <p><span class="font-medium">{{ entry.actor.name if entry.actor else "System" }}</span> · <span class="badge border border-border">{{ entry.action }}</span>
+        <span class="text-muted-foreground">{{ entry.entity }} #{{ entry.entity_id }}</span></p>
+      {{ changes(entry) }}
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+{{ pagination(page, "admin.audit_log", request.args.to_dict()) }}
+{% else %}
+{{ empty_state("No audit entries match.", None, None, "history") }}
+{% endif %}
+{% endblock %}

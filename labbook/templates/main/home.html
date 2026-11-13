@@ -26,14 +26,56 @@
   </section>
   {% endif %}
 
-  {% if stats %}
-  <section class="lg:col-span-3" aria-label="At a glance">
+  {% if admin_week %}
+  <section class="lg:col-span-3" aria-labelledby="h-week">
+    <h2 id="h-week" class="mb-2 text-lg font-semibold">This week</h2>
     <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <div class="card p-4"><dt class="text-xs text-muted-foreground">Units in service</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.units_in_service }}</dd></div>
-      <div class="card p-4"><dt class="text-xs text-muted-foreground">Out of service</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.units_out }}</dd></div>
-      <div class="card p-4"><dt class="text-xs text-muted-foreground">Equipment types</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.types }}</dd></div>
-      {% if stats.users is defined %}<div class="card p-4"><dt class="text-xs text-muted-foreground">Active users</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.users }}</dd></div>{% endif %}
+      <div class="card p-4"><dt class="text-xs text-muted-foreground">Bookings</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ admin_week.bookings }}</dd></div>
+      <div class="card p-4"><dt class="text-xs text-muted-foreground">Use of open hours</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ admin_week.utilisation }}%</dd></div>
+      <div class="card p-4"><dt class="text-xs text-muted-foreground">No-shows</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ admin_week.no_shows }}</dd></div>
+      <a class="card p-4 hover:border-primary" href="{{ url_for('approvals.index') }}"><dt class="text-xs text-muted-foreground">Pending approvals</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ admin_week.pending }}</dd></a>
     </dl>
+  </section>
+  {% endif %}
+
+  {% if glance %}
+  <section class="lg:col-span-3" aria-labelledby="h-glance">
+    <div class="mb-2 flex items-center justify-between gap-3">
+      <h2 id="h-glance" class="text-lg font-semibold">Today at a glance</h2>
+      <a class="btn btn-primary btn-sm" href="{{ url_for('desk.index') }}">{{ icon("clipboard-check") }}Open Today desk</a>
+    </div>
+    <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="card p-4"><dt class="text-xs text-muted-foreground">Due to check out</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ glance.due_out }}</dd></div>
+      <div class="card p-4"><dt class="text-xs text-muted-foreground">Due back today</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ glance.due_back }}</dd></div>
+      <div class="card p-4 {{ 'border-red-400 bg-red-50 dark:bg-red-950' if glance.overdue }}"><dt class="text-xs text-muted-foreground">Overdue</dt><dd class="mt-1 text-2xl font-semibold tabular {{ 'text-red-700 dark:text-red-300' if glance.overdue }}">{{ glance.overdue }}</dd></div>
+      <a class="card p-4 hover:border-primary" href="{{ url_for('units.index', status='OUT_OF_SERVICE') }}"><dt class="text-xs text-muted-foreground">Units out of service</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ glance.units_out }}</dd></a>
+    </dl>
+    {% if glance.issues or glance.missing %}
+    <div class="card mt-3 p-4">
+      <h3 class="text-sm font-semibold">Open issues{% if glance.missing %} · {{ glance.missing }} missing-accessory flag{{ "s" if glance.missing != 1 }}{% endif %}</h3>
+      <ul class="mt-2 divide-y divide-border">
+        {% for entry in glance.issues %}
+        <li><a class="flex items-start justify-between gap-3 py-2 hover:text-primary" href="{{ url_for('units.detail', unit_id=entry.unit_id) }}">
+          <span class="min-w-0"><span class="font-medium tabular">{{ entry.unit.asset_tag }}</span> <span class="text-muted-foreground">· {{ entry.notes|truncate(80) }}</span></span>
+          <span class="shrink-0 text-xs text-muted-foreground">{{ entry.created_at|relative }}</span></a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if recent_audit %}
+  <section class="card p-5 lg:col-span-3" aria-labelledby="h-audit">
+    <div class="flex items-center justify-between gap-3">
+      <h2 id="h-audit" class="text-lg font-semibold">Recent changes</h2>
+      <a class="link text-sm" href="{{ url_for('admin.audit_log') }}">Audit log</a>
+    </div>
+    <ul class="mt-2 divide-y divide-border text-sm">
+      {% for entry in recent_audit %}
+      <li class="flex justify-between gap-3 py-2"><span><span class="font-medium">{{ entry.actor.name if entry.actor else "System" }}</span> {{ entry.action }} · {{ entry.entity }} #{{ entry.entity_id }}</span><span class="shrink-0 text-xs text-muted-foreground">{{ entry.created_at|relative }}</span></li>
+      {% endfor %}
+    </ul>
   </section>
   {% endif %}
 

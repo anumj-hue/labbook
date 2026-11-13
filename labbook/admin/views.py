@@ -3,9 +3,9 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_, select
 
 from ..extensions import db
-from ..models import Accessory, EquipmentType, Holiday, Lab, Role, Term, User
+from ..models import Accessory, AuditLog, EquipmentType, Holiday, Lab, Role, Term, User
 from ..services import catalogue as cat
-from ..services import privacy, settings, users
+from ..services import closures, notify, privacy, settings, users
 from ..services.settings import RULES
 from .forms import (
     AccessoryForm,
@@ -36,6 +36,29 @@ def admins_only():
 
 def _get_or_404(model, obj_id):
     return db.get_or_404(model, obj_id)
+
+
+def _closure_gate(affected: list, reason: str) -> tuple[bool, dict | None, int]:
+    """FR-T4: when a change invalidates future bookings, show the count first and cancel only once confirmed.
+
+    Returns (proceed, warning, cancelled). On a first submit with affected bookings the flushed change is
+    rolled back and `warning` describes what would happen; the form re-posts with confirm_cancel=<count>.
+    """
+    if not affected:
+        return True, None, 0
+    if request.form.get("confirm_cancel") == str(len(affected)):
+        return True, None, closures.cancel_affected(affected, current_user, reason)
+    warning = {
+        "count": len(affected),
+        "items": [f"{b.type.name} ({b.unit.asset_tag}) · {notify.when(b)} · {b.user.name if b.user else 'Unknown'}"
+                  for b in affected[:5]],
+    }
+    db.session.rollback()
+    return False, warning, 0
+
+
+def _cancelled_note(count: int) -> str:
+    return f" {count} booking{'s' if count != 1 else ''} cancelled and the bookers told." if count else ""
 
 
 # --- Users ----------------------------------------------------------------------------------------
@@ -145,6 +168,7 @@ def _lab_form_page(lab: Lab | None):
         form = LabForm(data=data)
     else:
         form = LabForm()
+    warning = None
     if form.validate_on_submit():
         name = form.name.data.strip()
         if cat.name_taken(Lab, name, lab.id if lab else None):
@@ -158,10 +182,13 @@ def _lab_form_page(lab: Lab | None):
                 "term_hours": hours_from_form(form, "term"),
                 "vacation_hours": hours_from_form(form, "vacation"),
             }, "Lab")
-            db.session.commit()
-            flash(f"{target.name} saved.", "success")
-            return redirect(url_for("admin.labs"))
-    return render_template("admin/lab_form.html", form=form, lab=lab)
+            affected = closures.affected_bookings(lab_id=target.id) if lab is not None else []
+            proceed, warning, cancelled = _closure_gate(affected, f"{name} opening hours changed")
+            if proceed:
+                db.session.commit()
+                flash(f"{name} saved.{_cancelled_note(cancelled)}", "success")
+                return redirect(url_for("admin.labs"))
+    return render_template("admin/lab_form.html", form=form, lab=lab, warning=warning)
 
 
 @bp.route("/labs/new", methods=["GET", "POST"])
@@ -185,6 +212,7 @@ def calendar():
 
 def _term_page(term: Term | None):
     form = TermForm(obj=term)
+    warning = None
     if form.validate_on_submit():
         try:
             cat.check_term_overlap(form.start_date.data, form.end_date.data, term.id if term else None)
@@ -192,16 +220,20 @@ def _term_page(term: Term | None):
             form.start_date.errors.append(str(err))
         else:
             target = term or Term()
+            name = form.name.data.strip()
             cat.save(current_user, target, cat.TERM_FIELDS, {
-                "name": form.name.data.strip(), "start_date": form.start_date.data, "end_date": form.end_date.data,
+                "name": name, "start_date": form.start_date.data, "end_date": form.end_date.data,
             }, "Term")
-            db.session.commit()
-            flash(f"Term {target.name} saved.", "success")
-            return redirect(url_for("admin.calendar"))
+            proceed, warning, cancelled = _closure_gate(closures.affected_bookings(), f"Term {name} changed")
+            if proceed:
+                db.session.commit()
+                flash(f"Term {name} saved.{_cancelled_note(cancelled)}", "success")
+                return redirect(url_for("admin.calendar"))
     crumbs = [("Academic calendar", url_for("admin.calendar"))]
     return render_template("form_page.html", form=form, title="Edit term" if term else "Add term",
                            cancel_url=url_for("admin.calendar"), crumbs=crumbs,
                            delete_url=url_for("admin.calendar_term_delete", term_id=term.id) if term else None,
+                           warning=warning,
                            intro="Term opening hours apply to dates inside a term; "
                                  "vacation hours apply outside every term.")
 
@@ -219,9 +251,17 @@ def calendar_term_edit(term_id: int):
 @bp.post("/calendar/terms/<int:term_id>/delete")
 def calendar_term_delete(term_id: int):
     term = _get_or_404(Term, term_id)
+    name = term.name
     cat.delete(current_user, term, cat.TERM_FIELDS, "Term")
+    db.session.flush()
+    proceed, warning, cancelled = _closure_gate(closures.affected_bookings(), f"Term {name} removed")
+    if not proceed:
+        return render_template("admin/confirm_closure.html", warning=warning, title=f"Delete term {name}?",
+                               action=url_for("admin.calendar_term_delete", term_id=term_id),
+                               cancel_url=url_for("admin.calendar_term_edit", term_id=term_id),
+                               confirm_label="Delete term and cancel bookings")
     db.session.commit()
-    flash("Term deleted.", "success")
+    flash(f"Term deleted.{_cancelled_note(cancelled)}", "success")
     return redirect(url_for("admin.calendar"))
 
 
@@ -232,23 +272,26 @@ def _holiday_page(holiday: Holiday | None):
     form.lab_id.choices = [(0, "All labs")] + [
         (lab.id, lab.name) for lab in db.session.scalars(select(Lab).order_by(Lab.name))
     ]
+    warning = None
     if form.validate_on_submit():
         target = holiday or Holiday()
+        start, end = form.start_date.data, form.end_date.data or form.start_date.data
+        reason = form.reason.data.strip()
         cat.save(current_user, target, cat.HOLIDAY_FIELDS, {
-            "lab_id": form.lab_id.data or None,
-            "start_date": form.start_date.data,
-            "end_date": form.end_date.data or form.start_date.data,
-            "reason": form.reason.data.strip(),
+            "lab_id": form.lab_id.data or None, "start_date": start, "end_date": end, "reason": reason,
         }, "Holiday")
-        db.session.commit()
-        flash("Closure saved.", "success")
-        return redirect(url_for("admin.calendar"))
+        affected = closures.affected_bookings(start, end, form.lab_id.data or None)
+        proceed, warning, cancelled = _closure_gate(affected, f"Lab closed: {reason}")
+        if proceed:
+            db.session.commit()
+            flash(f"Closure saved.{_cancelled_note(cancelled)}", "success")
+            return redirect(url_for("admin.calendar"))
     crumbs = [("Academic calendar", url_for("admin.calendar"))]
     return render_template(
         "form_page.html", form=form, title="Edit holiday or closure" if holiday else "Add holiday or closure",
         cancel_url=url_for("admin.calendar"), crumbs=crumbs,
         delete_url=url_for("admin.calendar_holiday_delete", holiday_id=holiday.id) if holiday else None,
-        intro="Nothing can be booked in a closed lab on these dates.",
+        intro="Nothing can be booked in a closed lab on these dates.", warning=warning,
     )
 
 
@@ -421,3 +464,25 @@ def privacy_page():
         return redirect(url_for("admin.privacy"))
     return render_template("admin/privacy.html", form=form, notice=notice)
 
+
+
+# --- Audit log (spec §4.12) -----------------------------------------------------------------------
+
+@bp.get("/audit")
+def audit_log():
+    entity = request.args.get("entity", "")
+    action = request.args.get("action", "").strip()
+    actor_q = request.args.get("actor", "").strip()
+    stmt = select(AuditLog).order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    if entity:
+        stmt = stmt.where(AuditLog.entity == entity)
+    if action:
+        stmt = stmt.where(AuditLog.action == action)
+    if actor_q:
+        stmt = stmt.join(User, AuditLog.actor_id == User.id).where(
+            or_(User.name.ilike(f"%{actor_q}%"), User.email.ilike(f"%{actor_q}%")))
+    page = db.paginate(stmt, per_page=PER_PAGE, error_out=False)
+    entities = db.session.scalars(select(AuditLog.entity).distinct().order_by(AuditLog.entity)).all()
+    actions = db.session.scalars(select(AuditLog.action).distinct().order_by(AuditLog.action)).all()
+    return render_template("admin/audit.html", page=page, entity=entity, action=action, actor=actor_q,
+                           entities=entities, actions=actions)

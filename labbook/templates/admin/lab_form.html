@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import field, page_header %}
+{% from "macros.html" import field, page_header, closure_warning %}
 {% block title %}{{ "Edit " ~ lab.name if lab else "Add lab" }}{% endblock %}
 {% macro hours_table(prefix, title, hint) %}
 <fieldset class="card p-5 sm:p-6">
@@ -28,6 +28,7 @@
 {{ page_header(self.title(), [("Labs", url_for("admin.labs"))]) }}
 <form method="post" class="max-w-3xl space-y-6" novalidate>
   {{ form.hidden_tag() }}
+  {{ closure_warning(warning) }}
   <div class="card grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
     {{ field(form.name, class="sm:col-span-2") }}
     {{ field(form.location) }}
@@ -37,7 +38,7 @@
   {{ hours_table("vacation", "Vacation hours", "Used outside every term. Leave every day unticked to close the lab during vacations.") }}
   <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
     <a class="btn btn-outline" href="{{ url_for('admin.labs') }}">Cancel</a>
-    <button class="btn btn-primary">Save lab</button>
+    <button class="btn {{ 'btn-destructive' if warning else 'btn-primary' }}">{% if warning %}Save and cancel {{ warning.count }} booking{{ "s" if warning.count != 1 }}{% else %}Save lab{% endif %}</button>
   </div>
 </form>
 {% endblock %}

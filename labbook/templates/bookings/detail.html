@@ -16,6 +16,8 @@
 <div class="grid max-w-4xl gap-6 lg:grid-cols-[1fr_18rem]">
   <section class="card p-5 sm:p-6" aria-label="Booking details">
     <div class="flex flex-wrap items-center gap-2">{{ booking_status_badge(booking.status) }}
+      {% if booking.is_overdue %}<span class="badge bg-red-600 text-white">{{ icon("triangle-alert", "size-3") }}Overdue</span>{% endif %}
+      {% if booking.accessories_missing %}<span class="badge bg-amber-500 text-amber-950">{{ icon("package-x", "size-3") }}Accessories missing</span>{% endif %}
       {% if booking.is_late_cancel %}<span class="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">Late cancellation</span>{% endif %}
     </div>
     <dl class="mt-5 grid gap-4 sm:grid-cols-2">
@@ -41,6 +43,20 @@
       <div class="sm:col-span-2"><dt class="text-xs text-muted-foreground">Cancelled</dt><dd class="mt-0.5">{{ booking.cancelled_at|datetime }}{% if booking.cancel_reason %} · {{ booking.cancel_reason }}{% endif %}</dd></div>
       {% endif %}
     </dl>
+    {% if checks %}
+    <div class="mt-6 border-t border-border pt-4">
+      <h2 class="text-sm font-semibold">Hand-over record</h2>
+      <ol class="mt-2 space-y-3">
+        {% for c in checks %}
+        <li class="text-sm">
+          <p><span class="font-medium">{{ "Checked out" if c.kind.value == "OUT" else "Checked in" }}</span> · {{ c.at|datetime }} · {{ c.condition.label }}{% if c.staff %} · by {{ c.staff.name }}{% endif %}</p>
+          {% if c.items %}<p class="text-muted-foreground">{% for i in c.items %}{{ i.accessory.name }} ×{{ i.qty }}{% if i.is_missing %} <span class="font-medium text-amber-700 dark:text-amber-300">(missing{% if i.resolved_at %}, resolved{% endif %})</span>{% endif %}{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
+          {% if c.notes %}<p class="whitespace-pre-line text-muted-foreground">{{ c.notes }}</p>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+    {% endif %}
     {% if booking.type.active_accessories %}
     <div class="mt-6 border-t border-border pt-4">
       <h2 class="text-sm font-semibold">What you'll receive</h2>
@@ -75,6 +91,32 @@
       <button class="btn btn-ghost w-full text-destructive">{{ icon("circle-x") }}Cancel booking</button>
     </form>
   </aside>
+  {% elif current_user.has_role(Role.LAB_TECH) and booking.status in (BookingStatus.CONFIRMED, BookingStatus.CHECKED_OUT, BookingStatus.NO_SHOW) %}
+  <aside class="card space-y-2 p-5" aria-label="Lab desk">
+    <h2 class="font-semibold">Lab desk</h2>
+    {% if booking.status == BookingStatus.CONFIRMED %}
+    <a class="btn btn-primary w-full" href="{{ url_for('desk.check_out', booking_id=booking.id) }}">{{ icon("package-open") }}Check out</a>
+    {% if booking.has_started %}
+    <form method="post" action="{{ url_for('desk.action', booking_id=booking.id, action='no-show') }}" data-confirm="Mark as a no-show? The slot is released." data-confirm-label="Mark no-show">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-outline w-full">{{ icon("user-x") }}Mark no-show</button>
+    </form>
+    {% endif %}
+    {% elif booking.status == BookingStatus.CHECKED_OUT %}
+    <a class="btn btn-primary w-full" href="{{ url_for('desk.check_in', booking_id=booking.id) }}">{{ icon("check-check") }}Check in</a>
+    {% else %}
+    <form method="post" action="{{ url_for('desk.action', booking_id=booking.id, action='reverse-no-show') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-outline w-full">{{ icon("undo-2") }}Reverse no-show</button>
+    </form>
+    {% endif %}
+    {% if booking.accessories_missing %}
+    <form method="post" action="{{ url_for('desk.action', booking_id=booking.id, action='resolve-missing') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-outline w-full">{{ icon("check") }}Accessories returned</button>
+    </form>
+    {% endif %}
+  </aside>
   {% elif is_owner and booking.can_change %}
   <aside class="card space-y-3 p-5" aria-label="Actions">
     <a class="btn btn-outline w-full" href="{{ url_for('bookings.edit', booking_id=booking.id) }}">{{ icon("pencil") }}Change time</a>
@@ -87,4 +129,16 @@
   </aside>
   {% endif %}
 </div>
+
+{% if is_owner and booking.status in (BookingStatus.CONFIRMED, BookingStatus.CHECKED_OUT, BookingStatus.COMPLETED) %}
+<details class="card mt-6 max-w-4xl p-5">
+  <summary class="cursor-pointer font-medium">Report an issue with {{ booking.unit.asset_tag }}</summary>
+  <form method="post" action="{{ url_for('bookings.report_issue', booking_id=booking.id) }}" class="mt-3 space-y-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="label" for="issue-notes">What's wrong?</label>
+    <textarea id="issue-notes" name="notes" class="input" rows="2" maxlength="2000" placeholder="e.g. Probe 2 broken" required></textarea>
+    <button class="btn btn-outline">{{ icon("wrench") }}Send to lab techs</button>
+  </form>
+</details>
+{% endif %}
 {% endblock %}

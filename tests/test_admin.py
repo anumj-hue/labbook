@@ -175,8 +175,10 @@ def test_unit_status_change_is_audited(login_as, client, db):
     unit = EquipmentUnit(type_id=eq_type.id, lab_id=lab.id, asset_tag="T-01")
     db.session.add(unit)
     db.session.commit()
-    client.post(f"/units/{unit.id}", data={"type_id": eq_type.id, "lab_id": lab.id, "asset_tag": "T-01",
-                                           "status": "OUT_OF_SERVICE"})
+    client.post(f"/units/{unit.id}/status", data={"status": "OUT_OF_SERVICE", "reason": ""})
+    db.session.refresh(unit)
+    assert unit.status is UnitStatus.AVAILABLE  # a reason is required
+    client.post(f"/units/{unit.id}/status", data={"status": "OUT_OF_SERVICE", "reason": "Noisy channel"})
     db.session.refresh(unit)
     assert unit.status is UnitStatus.OUT_OF_SERVICE
     entry = db.session.query(AuditLog).filter_by(entity="EquipmentUnit").one()
