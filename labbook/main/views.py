@@ -5,7 +5,18 @@ from flask_login import current_user, login_required
 from sqlalchemy import func, select
 
 from ..extensions import db
-from ..models import ACTIVE_STATUSES, Booking, EquipmentType, EquipmentUnit, Lab, Role, Term, UnitStatus, User
+from ..models import (
+    ACTIVE_STATUSES,
+    Booking,
+    BookingStatus,
+    EquipmentType,
+    EquipmentUnit,
+    Lab,
+    Role,
+    Term,
+    UnitStatus,
+    User,
+)
 from ..services import bookings, settings
 from ..timeutil import default_tz, local_today, utcnow
 
@@ -64,5 +75,15 @@ def home():
                               Booking.ends_at > now).order_by(Booking.starts_at).limit(5)
     ).all()
     quota = bookings.quota_summary(current_user, now) if current_user.role is Role.STUDENT else None
+    pending_mine = [b for b in upcoming if b.status is BookingStatus.PENDING]
+    approvals = None
+    if current_user.has_role(Role.TEACHER):
+        approvals = {
+            "count": db.session.scalar(select(func.count()).select_from(Booking)
+                                       .where(Booking.status == BookingStatus.PENDING)),
+            "items": db.session.scalars(select(Booking).where(Booking.status == BookingStatus.PENDING)
+                                        .order_by(Booking.created_at).limit(5)).all(),
+        }
     return render_template("main/home.html", checklist=checklist, recent_types=recent_types, stats=stats,
-                           today=local_today(), upcoming=upcoming, quota=quota, tz=default_tz(), now=now)
+                           today=local_today(), upcoming=upcoming, quota=quota, tz=default_tz(), now=now,
+                           pending_mine=pending_mine, approvals=approvals)

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, empty_state, pagination %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+{% call page_header("Notifications") %}
+  {% if unread_count() %}
+  <form method="post" action="{{ url_for('notifications.read_all') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-outline">{{ icon("check-check") }}Mark all read</button>
+  </form>
+  {% endif %}
+{% endcall %}
+
+{% if page.items %}
+<ul class="card divide-y divide-border overflow-hidden">
+  {% for n in page.items %}
+  <li>
+    <a href="{{ url_for('notifications.open_', notification_id=n.id) }}" class="flex gap-3 p-4 hover:bg-background {{ 'bg-primary-subtle/40' if not n.read_at }}">
+      <span class="mt-1.5 size-2 shrink-0 rounded-full {{ 'bg-primary' if not n.read_at else 'bg-transparent' }}" aria-hidden="true"></span>
+      <span class="min-w-0 flex-1">
+        <span class="flex items-baseline justify-between gap-3">
+          <span class="font-medium {{ '' if n.read_at else 'font-semibold' }}">{{ n.title }}{% if not n.read_at %}<span class="sr-only"> (unread)</span>{% endif %}</span>
+          <time class="shrink-0 text-xs text-muted-foreground" datetime="{{ n.created_at.isoformat() }}" title="{{ n.created_at|datetime }}">{{ n.created_at|relative }}</time>
+        </span>
+        <span class="mt-0.5 block whitespace-pre-line text-muted-foreground">{{ n.body }}</span>
+      </span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{{ pagination(page, "notifications.index", request.args.to_dict()) }}
+{% else %}
+{{ empty_state("No notifications yet.", None, None, "bell") }}
+{% endif %}
+{% endblock %}

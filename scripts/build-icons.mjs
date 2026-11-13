@@ -3,7 +3,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 const ICONS = [
-  "archive", "archive-restore", "arrow-left-right", "ban", "bell-ring", "building-2", "calendar", "calendar-check",
+  "archive", "archive-restore", "arrow-left-right", "ban", "bell", "bell-ring", "building-2", "calendar", "calendar-check",
   "calendar-days", "check", "check-check", "chevron-left", "chevron-right", "clock", "hourglass", "list-ordered",
   "package-open", "undo-2", "user-x",
   "circle", "circle-check", "circle-x", "flask-conical", "house", "image", "info", "list-checks", "lock",

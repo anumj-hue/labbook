@@ -14,15 +14,21 @@ from ..timeutil import utcnow
 log = logging.getLogger(__name__)
 
 
-def external_url(endpoint: str, **values) -> str:
-    """Absolute URL built from BASE_URL so links work from requests, CLI commands and jobs alike."""
-    base = current_app.config["BASE_URL"].rstrip("/") + "/"
+def url_path(endpoint: str, **values) -> str:
+    """Site-relative URL that works in requests, CLI commands and jobs alike."""
     if has_request_context():
-        path = url_for(endpoint, **values)
-    else:
-        with current_app.test_request_context():
-            path = url_for(endpoint, **values)
-    return urljoin(base, path.lstrip("/"))
+        return url_for(endpoint, **values)
+    with current_app.test_request_context():
+        return url_for(endpoint, **values)
+
+
+def absolute(path: str) -> str:
+    return urljoin(current_app.config["BASE_URL"].rstrip("/") + "/", path.lstrip("/"))
+
+
+def external_url(endpoint: str, **values) -> str:
+    """Absolute URL built from BASE_URL, for links in emails."""
+    return absolute(url_path(endpoint, **values))
 
 
 def outbox() -> list[EmailMessage]:
@@ -31,11 +37,16 @@ def outbox() -> list[EmailMessage]:
 
 
 def send_mail(to: str, subject: str, template: str, **context) -> bool:
+    body = render_template(f"email/{template}.txt", subject=subject, **context)
+    return send_mail_message(to, subject, body, template)
+
+
+def send_mail_message(to: str, subject: str, body: str, kind: str = "notification") -> bool:
     msg = EmailMessage()
     msg["From"] = current_app.config["MAIL_FROM"]
     msg["To"] = to
     msg["Subject"] = subject
-    msg.set_content(render_template(f"email/{template}.txt", subject=subject, **context))
+    msg.set_content(body)
 
     backend = current_app.config["MAIL_BACKEND"]
     try:
@@ -60,6 +71,6 @@ def send_mail(to: str, subject: str, template: str, **context) -> bool:
             raise RuntimeError(f"Unknown MAIL_BACKEND {backend!r}")
     except (OSError, smtplib.SMTPException):
         # No recipient address in logs (spec §8: no PII in logs).
-        log.exception("Failed to send email %r via %s", template, backend)
+        log.exception("Failed to send email %r via %s", kind, backend)
         return False
     return True

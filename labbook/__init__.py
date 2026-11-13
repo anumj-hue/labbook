@@ -54,19 +54,27 @@ def create_app(config_name: str | None = None, **overrides) -> Flask:
     csrf.init_app(app)
     _init_login(app)
 
-    from . import models  # noqa: F401  (register models with SQLAlchemy metadata)
+    from . import (
+        jobs,
+        models,  # noqa: F401  (register models with SQLAlchemy metadata)
+    )
     from .admin.views import bp as admin_bp
+    from .api import bp as api_bp
+    from .approvals.views import bp as approvals_bp
     from .auth.views import bp as auth_bp
     from .bookings.views import bp as bookings_bp
     from .catalogue.views import bp as catalogue_bp
     from .cli import register_cli
     from .main.views import bp as main_bp
+    from .notifications.views import bp as notifications_bp
     from .units.views import bp as units_bp
 
-    for bp in (auth_bp, main_bp, catalogue_bp, bookings_bp, units_bp, admin_bp):
+    for bp in (auth_bp, main_bp, catalogue_bp, bookings_bp, approvals_bp, notifications_bp, units_bp, admin_bp,
+               api_bp):
         app.register_blueprint(bp)
 
     register_cli(app)
+    jobs.register(app)
     _init_templates(app)
     _init_consent_gate(app)
     _init_error_pages(app)
@@ -89,6 +97,7 @@ def _init_templates(app: Flask) -> None:
 
     from .models import BookingStatus, Role, UnitStatus
     from .nav import nav_sections
+    from .notifications.views import unread_count
     from .rules import format_minutes
     from .timeutil import fmt_date, fmt_datetime, fmt_relative, fmt_time
 
@@ -104,7 +113,7 @@ def _init_templates(app: Flask) -> None:
     app.add_template_filter(fmt_relative, "relative")
     app.add_template_filter(format_minutes, "duration")
     app.jinja_env.globals.update(Role=Role, UnitStatus=UnitStatus, BookingStatus=BookingStatus,
-                                  nav_sections=nav_sections)
+                                  nav_sections=nav_sections, unread_count=unread_count)
     app.jinja_env.trim_blocks = True
     app.jinja_env.lstrip_blocks = True
 

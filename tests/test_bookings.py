@@ -132,17 +132,6 @@ def test_holiday_blocks_booking(login_as, client, db, scope):
     assert "Closed — Diwali" in response.text
 
 
-def test_students_cannot_book_approval_equipment_yet_but_staff_can(login_as, client, db, scope):
-    scope["type"].requires_approval = True
-    db.session.commit()
-    login_as()
-    assert "needs teacher approval" in client.post("/bookings/new", data=book_form(scope["type"])).text
-    client.post("/logout")
-    login_as(Role.TEACHER)
-    assert client.post("/bookings/new", data=book_form(scope["type"])).status_code == 302
-    assert db.session.query(Booking).one().status is BookingStatus.CONFIRMED
-
-
 def test_no_units_available_when_all_taken(login_as, client, make_user, db, scope):
     other = make_user()
     for unit in scope["units"]:

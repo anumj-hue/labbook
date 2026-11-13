@@ -1,5 +1,6 @@
 """Role-based navigation (spec §6.3). Add items here as later slices ship their pages."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from flask import request, url_for
@@ -15,6 +16,11 @@ class NavItem:
     icon: str
     roles: frozenset[Role] | None = None  # None = every signed-in user
     match: str | None = None  # endpoint prefix that marks the item active
+    badge: Callable[[], int] | None = None  # e.g. pending approvals count
+
+    @property
+    def badge_count(self) -> int:
+        return self.badge() if self.badge else 0
 
     @property
     def url(self) -> str:
@@ -27,12 +33,29 @@ class NavItem:
 
 
 _STAFF_TECH = frozenset({Role.LAB_TECH})
+_APPROVERS = frozenset({Role.TEACHER})
+
+
+def _pending_approvals() -> int:
+    from .approvals.views import pending_count
+
+    return pending_count()
+
+
+def _unread() -> int:
+    from .notifications.views import unread_count
+
+    return unread_count()
+
 
 MAIN_NAV = (
     NavItem("Home", "main.home", "house"),
     NavItem("Equipment", "catalogue.index", "flask-conical", match="catalogue."),
     NavItem("Calendar", "bookings.calendar", "calendar"),
     NavItem("My Bookings", "bookings.index", "calendar-check", match="bookings.index"),
+    NavItem("Approvals", "approvals.index", "list-checks", roles=_APPROVERS, match="approvals.",
+            badge=_pending_approvals),
+    NavItem("Notifications", "notifications.index", "bell", match="notifications.", badge=_unread),
     NavItem("Units", "units.index", "wrench", roles=_STAFF_TECH, match="units."),
 )
 

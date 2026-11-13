@@ -1,0 +1,10 @@
+Hi {{ user.name }},
+
+{{ body }}
+{% if link %}
+
+{{ link }}
+{% endif %}
+
+LabBook
+Email preferences: {{ prefs_link }}

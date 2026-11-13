@@ -43,6 +43,33 @@
   </section>
   {% endif %}
 
+  {% if approvals and approvals.count %}
+  <section class="card p-5 lg:col-span-3" aria-labelledby="h-approvals">
+    <div class="flex items-center justify-between gap-3">
+      <h2 id="h-approvals" class="text-lg font-semibold">Approvals waiting <span class="ml-1 badge bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300 tabular">{{ approvals.count }}</span></h2>
+      <a class="btn btn-outline btn-sm" href="{{ url_for('approvals.index') }}">Open queue</a>
+    </div>
+    <ul class="mt-3 divide-y divide-border">
+      {% for b in approvals["items"] %}
+      {% set s = b.starts_at.astimezone(tz) %}
+      <li class="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
+        <a class="min-w-0 flex-1 hover:text-primary" href="{{ url_for('bookings.detail', booking_id=b.id) }}">
+          <span class="font-medium">{{ b.user.name if b.user else "Unknown" }}</span> · {{ b.type.name }}
+          <span class="block text-xs text-muted-foreground tabular">{{ s|date }}, {{ "%02d:%02d"|format(s.hour, s.minute) }} · {{ b.duration_minutes|duration }}</span>
+        </a>
+        <div class="flex gap-2">
+          <form method="post" action="{{ url_for('approvals.approve', booking_id=b.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ url_for('main.home') }}">
+            <button class="btn btn-primary btn-sm">{{ icon("check") }}Approve</button>
+          </form>
+          <a class="btn btn-outline btn-sm" href="{{ url_for('bookings.detail', booking_id=b.id) }}">{{ icon("ban") }}Reject…</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   {% set next = upcoming[0] if upcoming else None %}
   <section class="card p-5 lg:col-span-2" aria-labelledby="h-next">
     <h2 id="h-next" class="text-lg font-semibold">Next booking</h2>
@@ -72,6 +99,19 @@
     <a class="btn btn-primary mt-3" href="{{ url_for('catalogue.index') }}">{{ icon("plus") }}Book equipment</a>
     {% endif %}
   </section>
+
+  {% if pending_mine %}
+  <section class="card p-5 lg:col-span-3" aria-labelledby="h-pending">
+    <h2 id="h-pending" class="text-lg font-semibold">Pending requests</h2>
+    <ul class="mt-2 divide-y divide-border">
+      {% for b in pending_mine %}{% set s = b.starts_at.astimezone(tz) %}
+      <li><a class="flex items-center justify-between gap-3 py-2 hover:text-primary" href="{{ url_for('bookings.detail', booking_id=b.id) }}">
+        <span class="truncate">{{ b.type.name }} <span class="text-muted-foreground tabular">· {{ s|date }}, {{ "%02d:%02d"|format(s.hour, s.minute) }}</span></span>
+        {{ booking_status_badge(b.status) }}</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
 
   {% if quota %}
   <section class="card p-5" aria-labelledby="h-quota">

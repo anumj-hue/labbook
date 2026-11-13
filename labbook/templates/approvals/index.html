@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, empty_state %}
+{% block title %}Approvals{% endblock %}
+{% block content %}
+{{ page_header("Approvals", subtitle="Student requests for equipment that needs approval, oldest first.") }}
+
+{% if requests %}
+<form id="bulk" method="post" action="{{ url_for('approvals.bulk_approve') }}" class="mb-3 hidden items-center gap-3 md:flex">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label class="flex items-center gap-2 text-sm"><input type="checkbox" class="size-4" data-select-all> Select all</label>
+  <button class="btn btn-outline btn-sm">{{ icon("check-check") }}Approve selected</button>
+</form>
+
+<ul class="space-y-3">
+  {% for b in requests %}
+  {% set s = b.starts_at.astimezone(tz) %}{% set e = b.ends_at.astimezone(tz) %}
+  {% set h = history.get(b.user_id, {}) %}
+  <li class="card p-4 sm:p-5">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
+      <input type="checkbox" form="bulk" name="booking_id" value="{{ b.id }}" class="mt-1 hidden size-4 md:block" aria-label="Select request #{{ b.id }}" data-select-item>
+      <div class="flex min-w-0 flex-1 gap-3">
+        <span class="grid size-10 shrink-0 place-items-center rounded-full bg-primary-subtle text-sm font-semibold text-primary">{{ b.user.initials if b.user else "?" }}</span>
+        <div class="min-w-0">
+          <p class="flex flex-wrap items-center gap-2 font-semibold">{{ b.user.name if b.user else "Unknown" }}
+            {% if h.no_shows %}<span class="badge bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300">{{ icon("user-x", "size-3") }}{{ h.no_shows }} no-show{{ "s" if h.no_shows != 1 }}</span>{% endif %}
+          </p>
+          <p class="mt-0.5"><a class="font-medium hover:text-primary" href="{{ url_for('bookings.detail', booking_id=b.id) }}">{{ b.type.name }}</a> · <span class="tabular">{{ s|date }}, {{ "%02d:%02d"|format(s.hour, s.minute) }}–{{ "%02d:%02d"|format(e.hour, e.minute) }}</span> · {{ b.unit.asset_tag }}</p>
+          {% if b.purpose %}<p class="mt-1 whitespace-pre-line text-muted-foreground">“{{ b.purpose }}”</p>{% endif %}
+          <p class="mt-1 text-xs text-muted-foreground tabular">History: {{ h.total or 0 }} bookings · {{ h.completed or 0 }} completed · {{ h.late_cancels or 0 }} late cancellations · requested {{ b.created_at|relative }}</p>
+        </div>
+      </div>
+      <div class="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
+        <form method="post" action="{{ url_for('approvals.approve', booking_id=b.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-primary w-full">{{ icon("check") }}Approve</button>
+        </form>
+        <details class="group">
+          <summary class="btn btn-outline w-full list-none">{{ icon("ban") }}Reject</summary>
+          <form method="post" action="{{ url_for('approvals.reject', booking_id=b.id) }}" class="mt-2 w-full space-y-2 sm:w-72">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="label" for="reason-{{ b.id }}">Reason (sent to the student)</label>
+            <textarea id="reason-{{ b.id }}" name="reason" class="input" rows="2" required maxlength="500"></textarea>
+            <button class="btn btn-destructive w-full">Reject request</button>
+          </form>
+        </details>
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+<script>
+  document.querySelector("[data-select-all]")?.addEventListener("change", (e) => {
+    document.querySelectorAll("[data-select-item]").forEach((box) => { box.checked = e.target.checked; });
+  });
+</script>
+{% else %}
+{{ empty_state("No requests waiting. You're all caught up.", None, None, "check-check") }}
+{% endif %}
+{% endblock %}

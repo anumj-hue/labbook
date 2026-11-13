@@ -26,6 +26,17 @@
         {% if booking.unit.lab.location %}<dd class="flex items-center gap-1 text-xs text-muted-foreground">{{ icon("map-pin", "size-3") }}{{ booking.unit.lab.location }}</dd>{% endif %}</div>
       {% if not is_owner %}<div><dt class="text-xs text-muted-foreground">Booked by</dt><dd class="mt-0.5 font-medium">{{ booking.user.name if booking.user else "Anonymised user" }}</dd></div>{% endif %}
       {% if booking.purpose %}<div class="sm:col-span-2"><dt class="text-xs text-muted-foreground">Purpose</dt><dd class="mt-0.5 whitespace-pre-line">{{ booking.purpose }}</dd></div>{% endif %}
+      {% if booking.status == BookingStatus.PENDING %}
+      <div class="sm:col-span-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">Waiting for a teacher to approve. {{ booking.unit.asset_tag }} is held for you meanwhile; if nobody decides in time the request expires.</div>
+      {% endif %}
+      {% if booking.decided_at and booking.status in (BookingStatus.CONFIRMED, BookingStatus.REJECTED) and booking.decided_by %}
+      <div class="sm:col-span-2"><dt class="text-xs text-muted-foreground">{{ "Approved" if booking.status == BookingStatus.CONFIRMED else "Rejected" }}</dt>
+        <dd class="mt-0.5">{{ booking.decided_by.name }} · {{ booking.decided_at|datetime }}{% if booking.decision_reason %}<span class="mt-1 block whitespace-pre-line">{{ booking.decision_reason }}</span>{% endif %}</dd></div>
+      {% endif %}
+      {% if booking.status == BookingStatus.BUMPED %}
+      <div class="sm:col-span-2"><dt class="text-xs text-muted-foreground">Overridden by a teacher</dt><dd class="mt-0.5">{{ booking.cancelled_at|datetime }}{% if booking.cancel_reason %} · {{ booking.cancel_reason }}{% endif %}</dd>
+        <dd class="mt-2"><a class="link" href="{{ url_for('catalogue.detail', type_id=booking.type_id, date=booking.starts_at.astimezone(tz).date().isoformat()) }}">Find another time</a></dd></div>
+      {% endif %}
       {% if booking.status == BookingStatus.CANCELLED %}
       <div class="sm:col-span-2"><dt class="text-xs text-muted-foreground">Cancelled</dt><dd class="mt-0.5">{{ booking.cancelled_at|datetime }}{% if booking.cancel_reason %} · {{ booking.cancel_reason }}{% endif %}</dd></div>
       {% endif %}
@@ -40,7 +51,31 @@
     {% endif %}
   </section>
 
-  {% if is_owner and booking.can_change %}
+  {% if can_decide %}
+  <aside class="card space-y-3 p-5" aria-label="Decision">
+    <h2 class="font-semibold">Approve this request?</h2>
+    <form method="post" action="{{ url_for('approvals.approve', booking_id=booking.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-primary w-full">{{ icon("check") }}Approve</button>
+    </form>
+    <form method="post" action="{{ url_for('approvals.reject', booking_id=booking.id) }}" class="space-y-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <label class="label" for="reject-reason">Reason for rejecting</label>
+      <textarea id="reject-reason" name="reason" class="input" rows="2" required maxlength="500"></textarea>
+      <button class="btn btn-outline w-full">{{ icon("ban") }}Reject</button>
+    </form>
+  </aside>
+  {% elif staff_can_cancel %}
+  <aside class="card space-y-3 p-5" aria-label="Staff actions">
+    <form method="post" action="{{ url_for('bookings.cancel', booking_id=booking.id) }}" class="space-y-2"
+      data-confirm="Cancel {{ booking.user.name if booking.user else 'this' }}'s booking? They'll be told the reason." data-confirm-label="Cancel booking">
+      {{ cancel_form.hidden_tag() }}
+      <label class="label" for="staff-reason">Reason (sent to the booker)</label>
+      <textarea id="staff-reason" name="reason" class="input" rows="2" required maxlength="500"></textarea>
+      <button class="btn btn-ghost w-full text-destructive">{{ icon("circle-x") }}Cancel booking</button>
+    </form>
+  </aside>
+  {% elif is_owner and booking.can_change %}
   <aside class="card space-y-3 p-5" aria-label="Actions">
     <a class="btn btn-outline w-full" href="{{ url_for('bookings.edit', booking_id=booking.id) }}">{{ icon("pencil") }}Change time</a>
     <form method="post" action="{{ url_for('bookings.cancel', booking_id=booking.id) }}" class="space-y-2"

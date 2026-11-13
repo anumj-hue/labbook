@@ -15,7 +15,7 @@
 {% if not eq_type.is_archived %}
 <section id="book" aria-labelledby="h-book" class="mb-8">
   <h2 id="h-book" class="sr-only">Book {{ eq_type.name }}</h2>
-  {% with action=url_for("bookings.create"), submit_label="Book" %}{% include "bookings/_picker.html" %}{% endwith %}
+  {% with action=url_for("bookings.create"), submit_label=book_label %}{% include "bookings/_picker.html" %}{% endwith %}
 </section>
 {% endif %}
 

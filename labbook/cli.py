@@ -132,6 +132,7 @@ DEMO_BOOKINGS = [
     ("teacher@example.edu", "SA", 1, 2, "09:00", "11:00", BookingStatus.CONFIRMED),
     ("teacher@example.edu", "OSC", 4, 3, "09:00", "12:00", BookingStatus.CONFIRMED),
     ("student1@example.edu", "PSU", 1, -1, "10:00", "12:00", BookingStatus.COMPLETED),
+    ("student2@example.edu", "TC", 1, 2, "14:00", "16:00", BookingStatus.PENDING),
 ]
 
 

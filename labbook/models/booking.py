@@ -89,6 +89,8 @@ class Booking(db.Model):
     cancelled_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     cancel_reason: Mapped[str | None] = mapped_column(String(500))
     is_late_cancel: Mapped[bool] = mapped_column(Boolean, default=False)
+    bumped_by_booking_id: Mapped[int | None] = mapped_column(ForeignKey("booking.id", ondelete="SET NULL"))
+    reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
 
@@ -97,6 +99,7 @@ class Booking(db.Model):
     user: Mapped[User | None] = relationship(foreign_keys=[user_id])
     created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_id])
     cancelled_by: Mapped[User | None] = relationship(foreign_keys=[cancelled_by_id])
+    decided_by: Mapped[User | None] = relationship(foreign_keys=[decided_by_id])
 
     @property
     def duration_minutes(self) -> int:

@@ -135,6 +135,16 @@
       <ul class="mt-3 space-y-1.5 text-sm font-medium text-destructive empty:hidden" data-booking-messages role="alert">{% for v in violations %}<li class="flex items-start gap-1.5">{{ icon("triangle-alert", "mt-0.5 size-4") }}<span>{{ v.message }}</span></li>{% endfor %}</ul>
       <p class="mt-3 text-xs text-muted-foreground" data-booking-hint hidden>Drag on the timeline or pick a start and end time.</p>
       <button class="btn btn-primary mt-3 w-full" data-book-button>{{ submit_label }}</button>
+      {% if not booking and current_user.has_role(Role.TEACHER) %}
+      <div data-override {% if not override %}hidden{% endif %}
+        class="mt-3 rounded-lg border border-amber-400 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+        <p class="flex items-center gap-2 font-semibold">{{ icon("arrow-left-right") }}Override student booking</p>
+        <p class="mt-1 text-xs" data-override-text>{% if override %}{{ override.unit }} is booked by {{ override.student }} ({{ override.when }}, made {{ override.made }}). Overriding cancels it and tells them why.{% endif %}</p>
+        <label class="label mt-2 text-xs" for="override_reason">Reason (sent to the student)</label>
+        <textarea id="override_reason" name="override_reason" class="input" rows="2" maxlength="500"></textarea>
+        <button name="override" value="1" class="btn mt-2 w-full bg-amber-500 text-amber-950 hover:bg-amber-400">Override and book</button>
+      </div>
+      {% endif %}
     </aside>
   </div>
 </form>

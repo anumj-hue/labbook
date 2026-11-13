@@ -18,6 +18,7 @@ class Config:
     BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:5000")
     DEFAULT_TIMEZONE = os.environ.get("DEFAULT_TIMEZONE", "Asia/Kolkata")
     TRUST_PROXY = _env_bool("TRUST_PROXY")
+    JOBS_SECRET = os.environ.get("JOBS_SECRET")  # enables POST /api/jobs/tick
 
     # Sessions (FR-A6): server-side rows, cookie is HttpOnly + SameSite=Lax (+ Secure in production).
     SESSION_COOKIE_HTTPONLY = True
@@ -64,6 +65,7 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED = False
     MAIL_BACKEND = "memory"
     BASE_URL = "http://labbook.test"
+    JOBS_SECRET = "test-jobs-secret"
 
 
 CONFIGS = {

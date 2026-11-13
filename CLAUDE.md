@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository state
 
-LabBook is a Flask app for booking shared lab equipment in one department. **Slices 1–2 of 4 are built**: accounts, admin setup, catalogue, and booking (picker, create/edit/cancel, My Bookings, calendar). Students can't book approval-required equipment until slice 3 adds Pending/approvals.
+LabBook is a Flask app for booking shared lab equipment in one department. **Slices 1–3 of 4 are built**: accounts, admin setup, catalogue, booking (picker, create/edit/cancel, My Bookings, calendar), approvals, notifications, scheduled jobs and teacher override. Slice 4 (lab desk, no-shows, maintenance UI, CSV/audit viewer) is next.
 
 - `spec.md` is the product spec and the source of truth; requirement IDs like `FR-O4` and refs like `§7.3` come from it. `spec.html` is a rendered copy; keep it in sync if you edit `spec.md`.
 - The approved plan (structure + 4 MVP slices) is in `C:\Users\anumj\.claude\plans\memoized-gathering-duckling.md`.
@@ -21,6 +21,7 @@ flask db upgrade                        # apply migrations (DB: instance/labbook
 flask db migrate -m "msg"               # autogenerate a migration; review it before applying
 flask seed [--reset]                    # demo data, password "labbook-demo"; refuses in production
 flask create-admin --email E --name N [--invite] [--force]
+flask jobs tick                         # run due scheduled jobs once (cron every minute); `flask jobs run` loops
 flask run
 .venv/Scripts/python -m pytest                              # all tests
 .venv/Scripts/python -m pytest tests/test_auth.py -k reset  # single test
@@ -55,6 +56,14 @@ Run `npm run css` after adding Tailwind classes. The compiled `labbook/static/cs
 - `services/calendar.py`: opening hours per lab and date (term vs vacation hours, holidays). `services/availability.py`: busy intervals, `free_units()` ordering (preferred unit, then fewest bookings that day, then asset tag), and catalogue "free now". `services/timeline.py`: slot and segment data for the picker.
 - Picker UI: `templates/bookings/_picker.html` (included by the equipment detail page and the edit page) plus `static/js/timeline.js`. The JS keeps the selection in sync with the Start/End selects, which are the no-JS/accessible fallback.
 - Students never see other people's names or booking details: the timeline and calendar show "Booked", and other users' booking pages return 404.
+
+## Workflow (slice 3)
+
+- Status on create: `needs_approval(user, type)` (student + `requires_approval`) gives Pending; otherwise Confirmed. Pending holds the unit. `approve` / `reject` / `expire_due` are in `services/bookings.py`; the Approvals UI is the `approvals` blueprint (Teacher, which includes Admin).
+- Teacher override (§4.7): `evaluate()` sets `Evaluation.override` when the only violations are availability codes and the booker `has_role(TEACHER)`. `create(..., override_reason=...)` marks the victim BUMPED inside the same write transaction, then inserts on that unit.
+- Notifications: call `services.notify.notify(user, kind, title, body, url_path)`. It adds the in-app row and renders the email immediately, but sends it only from the session's `after_commit` hook (dropped on rollback). Never call `send_mail` directly for booking events. Optional (†) email kinds map to user email prefs in `OPTIONAL_EMAIL_PREF`.
+- Jobs: `labbook/jobs.py` (`JOBS` registry, `tick(now)`). Daily jobs record their last run in `JobRun`. Each job commits separately and must be idempotent; tests call `tick(now=...)` directly.
+- **Migrations that alter `booking` or `maintenance_block`** (SQLite batch mode rebuilds the table) drop the overlap triggers. Recreate them at the end of the migration, as the slice 3 migration does with `_recreate_triggers()`; `tests/test_migrations.py` catches it if you forget.
 
 **SQLite replacement for the §7.3 exclusion constraints:** booking writes run in `BEGIN IMMEDIATE` transactions, plus `BEFORE INSERT/UPDATE` triggers (`models/triggers.py`) on `booking` and `maintenance_block` that `RAISE(ABORT)` on overlap. `ACTIVE_STATUSES` is defined once in `models/booking.py` and the trigger SQL is generated from it; the slice 2 migration imports `CREATE_STATEMENTS`. If the active statuses ever change, add a migration that drops and recreates the triggers. `tests/test_migrations.py` checks that migrated and `create_all` databases have the same triggers.
 

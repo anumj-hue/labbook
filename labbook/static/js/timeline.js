@@ -13,6 +13,7 @@
   const button = form.querySelector("[data-book-button]");
   const messages = form.querySelector("[data-booking-messages]");
   const hint = form.querySelector("[data-booking-hint]");
+  const overrideBox = form.querySelector("[data-override]");
   const summary = (key) => form.querySelector(`[data-summary="${key}"]`);
 
   const timeline = form.querySelector("[data-timeline]");
@@ -201,6 +202,14 @@
     button.disabled = !data.ok;
     invalid = !data.ok && !data.incomplete;
     showMessages(data.violations);
+    if (overrideBox) {
+      overrideBox.hidden = !data.override;
+      if (data.override) {
+        const o = data.override;
+        overrideBox.querySelector("[data-override-text]").textContent =
+          `${o.unit} is booked by ${o.student} (${o.when}, made ${o.made}). Overriding cancels it and tells them why.`;
+      }
+    }
     render();
   }
 

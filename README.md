@@ -37,6 +37,18 @@ npm run css:watch     # in another terminal while editing templates
 
 With `MAIL_BACKEND=outbox` (the default in development), emails such as verification and reset links are written to `instance/outbox/*.eml` instead of being sent.
 
+## Scheduled jobs
+
+Reminders, pending-request expiry and the 07:00 approvals digest run from a job tick. Every job is safe to
+run repeatedly.
+
+```bash
+flask jobs tick          # run due jobs once; schedule every minute (cron / Windows Task Scheduler)
+flask jobs run           # development: tick every 60 s until Ctrl+C
+```
+
+Or set `JOBS_SECRET` and have cron call `POST /api/jobs/tick` with the header `X-Jobs-Secret: <secret>`.
+
 ## Tests and lint
 
 ```bash

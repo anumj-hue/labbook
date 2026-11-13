@@ -20,7 +20,7 @@ from ..rules import format_minutes
 from ..services import bookings as svc
 from ..services import settings, timeline
 from ..services.availability import in_service_units, type_timezone
-from ..timeutil import default_tz, fmt_date, utcnow
+from ..timeutil import default_tz, fmt_date, fmt_datetime, fmt_time, utcnow
 from .forms import BookingForm, CancelForm
 
 bp = Blueprint("bookings", __name__)
@@ -67,7 +67,7 @@ def picker_form(eq_type: EquipmentType, booking: Booking | None = None) -> Booki
 
 
 def picker_context(eq_type: EquipmentType, form: BookingForm, booking: Booking | None = None,
-                   violations=None) -> dict:
+                   violations=None, override=None) -> dict:
     day = form.date.data or utcnow().astimezone(type_timezone(eq_type)).date()
     tl = timeline.build(eq_type, day, current_user, editing_booking_id=booking.id if booking else None)
     rules = settings.effective_rules(eq_type)
@@ -89,6 +89,8 @@ def picker_context(eq_type: EquipmentType, form: BookingForm, booking: Booking |
         "max_duration_label": format_minutes(max_minutes),
         "max_duration_min": max_minutes,
         "violations": violations or [],
+        "override": override,
+        "book_label": "Request booking" if svc.needs_approval(current_user, eq_type) else "Book",
         "day": day,
         "prev_day": day - timedelta(days=1),
         "next_day": day + timedelta(days=1),
@@ -96,11 +98,22 @@ def picker_context(eq_type: EquipmentType, form: BookingForm, booking: Booking |
     }
 
 
-def render_type_page(eq_type: EquipmentType, form: BookingForm, violations=None, status: int = 200):
+def render_type_page(eq_type: EquipmentType, form: BookingForm, violations=None, status: int = 200,
+                     override=None):
     """The equipment detail page (spec FR-E3), which hosts the booking picker (spec §6.7)."""
     units = [u for u in eq_type.units if u.status is not UnitStatus.RETIRED]
     return render_template("catalogue/detail.html", units=units,
-                           **picker_context(eq_type, form, violations=violations)), status
+                           **picker_context(eq_type, form, violations=violations, override=override)), status
+
+
+def override_payload(option) -> dict | None:
+    """What the picker shows a teacher before bumping a student booking (spec §4.7, §6.7)."""
+    if option is None:
+        return None
+    victim = option.booking
+    return {"unit": option.unit.asset_tag, "student": victim.user.name if victim.user else "a student",
+            "when": f"{fmt_time(victim.starts_at)}–{fmt_time(victim.ends_at)}",
+            "made": fmt_datetime(victim.created_at)}
 
 
 def _request_from_form(form: BookingForm, eq_type: EquipmentType, booking: Booking | None = None):
@@ -137,20 +150,30 @@ def _own_or_staff(booking: Booking) -> None:
 def create():
     eq_type = db.get_or_404(EquipmentType, request.form.get("type_id", type=int))
     form = picker_form(eq_type)
-    violations = []
+    violations, override = [], None
     if form.validate_on_submit():
         req = _request_from_form(form, eq_type)
+        override_reason = request.form.get("override_reason", "") if request.form.get("override") == "1" else None
         try:
-            booking = svc.create(req, current_user)
+            booking = svc.create(req, current_user, override_reason=override_reason)
         except svc.BookingRefused as refused:
             db.session.rollback()
             violations = refused.violations
+            override = override_payload(svc.evaluate(req).override)
+            db.session.rollback()
         else:
             db.session.commit()
-            flash(f"Booked {booking.unit.asset_tag} for {fmt_date(booking.starts_at)}, "
-                  f"{booking.starts_at.astimezone(type_timezone(eq_type)):%H:%M}.", "success")
+            when = f"{fmt_date(booking.starts_at)}, {booking.starts_at.astimezone(type_timezone(eq_type)):%H:%M}"
+            if booking.status is BookingStatus.PENDING:
+                flash(f"Request sent for {when}. {booking.unit.asset_tag} is held while a teacher reviews it.",
+                      "success")
+            elif override_reason is not None:
+                flash(f"Booked {booking.unit.asset_tag} for {when}. The student's booking was overridden and "
+                      f"they've been told why.", "success")
+            else:
+                flash(f"Booked {booking.unit.asset_tag} for {when}.", "success")
             return redirect(url_for("bookings.detail", booking_id=booking.id, new=1))
-    return render_type_page(eq_type, form, violations, 400)
+    return render_type_page(eq_type, form, violations, 400, override=override)
 
 
 @bp.post("/bookings/validate")
@@ -173,7 +196,8 @@ def validate():
     db.session.rollback()
     if result.ok and not form.unit_id.data and result.free:
         summary["unit"] = f"Any available unit (e.g. {result.free[0].asset_tag})"
-    return jsonify(ok=result.ok, incomplete=False, summary=summary,
+    override = override_payload(result.override)
+    return jsonify(ok=result.ok, incomplete=False, summary=summary, override=override,
                    violations=[{"code": v.code, "message": v.message} for v in result.violations])
 
 
@@ -185,8 +209,13 @@ def detail(booking_id: int):
     booking = db.get_or_404(Booking, booking_id)
     _own_or_staff(booking)
     tz = type_timezone(booking.type)
+    is_owner = booking.user_id == current_user.id
+    staff_can_cancel = (not is_owner and current_user.has_role(Role.LAB_TECH) and not booking.has_started
+                        and booking.status in (BookingStatus.PENDING, BookingStatus.CONFIRMED))
     return render_template("bookings/detail.html", booking=booking, tz=tz, cancel_form=CancelForm(),
-                           is_owner=booking.user_id == current_user.id, just_created=request.args.get("new") == "1")
+                           is_owner=is_owner, staff_can_cancel=staff_can_cancel,
+                           can_decide=booking.status is BookingStatus.PENDING and current_user.has_role(Role.TEACHER),
+                           just_created=request.args.get("new") == "1")
 
 
 @bp.route("/bookings/<int:booking_id>/edit", methods=["GET", "POST"])
@@ -219,8 +248,10 @@ def edit(booking_id: int):
 @bp.post("/bookings/<int:booking_id>/cancel")
 @login_required
 def cancel(booking_id: int):
+    """Owners cancel their own bookings (FR-C1); Lab Techs and Admins can cancel any, with a reason (FR-C4)."""
     booking = db.get_or_404(Booking, booking_id)
-    if booking.user_id != current_user.id:
+    is_owner = booking.user_id == current_user.id
+    if not is_owner and not current_user.has_role(Role.LAB_TECH):
         abort(404)
     form = CancelForm()
     if not form.validate_on_submit():
@@ -232,6 +263,9 @@ def cancel(booking_id: int):
         flash(refused.violations[0].message, "error")
         return redirect(url_for("bookings.detail", booking_id=booking.id))
     db.session.commit()
+    if not is_owner:
+        flash("Booking cancelled. The booker has been told why.", "success")
+        return redirect(url_for("bookings.detail", booking_id=booking.id))
     note = " It counts as a late cancellation." if booking.is_late_cancel else ""
     flash(f"Booking cancelled.{note}", "success")
     return redirect(url_for("bookings.index", undo=booking.id))
