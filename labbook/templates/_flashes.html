@@ -1,0 +1,20 @@
+{% from "macros.html" import icon %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="pointer-events-none fixed inset-x-4 top-4 z-[60] flex flex-col gap-2 sm:inset-x-auto sm:top-auto sm:bottom-4 sm:right-4 sm:w-96"
+  role="status" aria-live="polite">
+  {% for category, message in messages %}
+  {% set is_error = category == "error" %}
+  <div data-toast="{{ category }}" role="{{ 'alert' if is_error else 'status' }}"
+    class="toast pointer-events-auto flex items-start gap-3 rounded-xl border bg-background p-3.5 shadow-lg
+      {{ 'border-destructive/40' if is_error else 'border-border' }}">
+    <span class="mt-0.5 {{ 'text-destructive' if is_error else ('text-primary' if category == 'success' else 'text-muted-foreground') }}">
+      {{ icon("triangle-alert" if is_error else ("circle-check" if category == "success" else "info")) }}
+    </span>
+    <p class="flex-1">{{ message }}</p>
+    <button type="button" class="-m-1 rounded p-1 text-muted-foreground hover:text-foreground" data-toast-dismiss aria-label="Dismiss">{{ icon("x") }}</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}

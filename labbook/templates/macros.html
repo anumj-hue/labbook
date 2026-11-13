@@ -1,0 +1,106 @@
+{% macro icon(name, class="size-4") -%}
+<svg class="{{ class }} shrink-0" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75"
+  stroke-linecap="round" stroke-linejoin="round"><use href="{{ url_for('static', filename='icons.svg') }}#i-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{% macro page_header(title, crumbs=None, subtitle=None) %}
+<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <div class="min-w-0">
+    {% if crumbs %}
+    <nav aria-label="Breadcrumb" class="mb-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+      {% for label, href in crumbs %}
+      <a class="hover:text-foreground" href="{{ href }}">{{ label }}</a>{{ icon("chevron-right", "size-3") }}
+      {% endfor %}
+    </nav>
+    {% endif %}
+    <h1 class="text-2xl font-semibold leading-8">{{ title }}</h1>
+    {% if subtitle %}<p class="mt-1 text-muted-foreground">{{ subtitle }}</p>{% endif %}
+  </div>
+  {% if caller is defined %}<div class="flex flex-wrap gap-2">{{ caller() }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro field(f, class="", label=None) %}
+<div class="{{ class }}">
+  {% if f.type == "BooleanField" %}
+  <label class="flex items-start gap-2.5 text-sm" for="{{ f.id }}">
+    {{ f(class="mt-0.5 size-4 shrink-0", **kwargs) }}
+    <span>
+      <span class="font-medium">{{ label or f.label.text }}</span>
+      {% if f.description %}<span class="block text-xs text-muted-foreground">{{ f.description }}</span>{% endif %}
+    </span>
+  </label>
+  {% else %}
+  <label class="label" for="{{ f.id }}">{{ label or f.label.text }}{% if f.flags.required %}<span class="text-destructive" aria-hidden="true"> *</span>{% endif %}</label>
+  {% set extra = dict(kwargs) %}
+  {% set _ = extra.update({"aria-invalid": "true" if f.errors else "false"}) %}
+  {% if f.description %}{% set _ = extra.update({"aria-describedby": f.id ~ "-desc"}) %}{% endif %}
+  {{ f(class="input", **extra) }}
+  {% if f.description %}<p id="{{ f.id }}-desc" class="mt-1 text-xs text-muted-foreground">{{ f.description }}</p>{% endif %}
+  {% endif %}
+  {% for error in f.errors %}<p class="mt-1 text-xs font-medium text-destructive">{{ error }}</p>{% endfor %}
+</div>
+{% endmacro %}
+
+{% macro form_fields(form) %}
+{% for f in form if f.type not in ("CSRFTokenField", "HiddenField", "SubmitField") %}{{ field(f) }}{% endfor %}
+{% endmacro %}
+
+{# Unit status badge (spec §6.8): icon + text + colour. #}
+{% macro unit_status_badge(status) %}
+{% if status == UnitStatus.AVAILABLE %}
+<span class="badge bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-300">{{ icon("circle", "size-3") }}Available</span>
+{% elif status == UnitStatus.OUT_OF_SERVICE %}
+<span class="badge bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300">{{ icon("wrench", "size-3") }}Out of service</span>
+{% else %}
+<span class="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ icon("archive", "size-3") }}Retired</span>
+{% endif %}
+{% endmacro %}
+
+{% macro approval_badge() %}
+<span class="badge bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300">{{ icon("lock", "size-3") }}Approval needed</span>
+{% endmacro %}
+
+{% macro muted_badge(text, icon_name=None) %}
+<span class="badge bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{% if icon_name %}{{ icon(icon_name, "size-3") }}{% endif %}{{ text }}</span>
+{% endmacro %}
+
+{% macro role_badge(role) %}
+<span class="badge border border-border text-muted-foreground">{{ role.label }}</span>
+{% endmacro %}
+
+{% macro empty_state(message, action_label=None, action_url=None, icon_name="search") %}
+<div class="card flex flex-col items-center gap-3 px-6 py-12 text-center">
+  <span class="grid size-12 place-items-center rounded-full bg-primary-subtle text-primary">{{ icon(icon_name, "size-6") }}</span>
+  <p class="text-muted-foreground">{{ message }}</p>
+  {% if action_label %}<a class="btn btn-primary" href="{{ action_url }}">{{ action_label }}</a>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro pagination(page, endpoint, args) %}
+{% if page.pages > 1 %}
+<nav class="mt-4 flex items-center justify-between gap-2 text-sm" aria-label="Pagination">
+  <p class="text-muted-foreground tabular">{{ page.first }}–{{ page.last }} of {{ page.total }}</p>
+  <div class="flex gap-2">
+    {% if page.has_prev %}<a class="btn btn-outline btn-sm" href="{{ url_for(endpoint, **dict(args, page=page.prev_num)) }}">{{ icon("chevron-left") }}Previous</a>{% endif %}
+    {% if page.has_next %}<a class="btn btn-outline btn-sm" href="{{ url_for(endpoint, **dict(args, page=page.next_num)) }}">Next{{ icon("chevron-right") }}</a>{% endif %}
+  </div>
+</nav>
+{% endif %}
+{% endmacro %}
+
+{% macro post_button(url, label, class="btn btn-outline btn-sm", confirm=None, confirm_label=None, icon_name=None, hidden=None) %}
+<form method="post" action="{{ url }}" class="inline"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}{% if confirm_label %} data-confirm-label="{{ confirm_label }}"{% endif %}>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% for name, value in (hidden or {}).items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <button class="{{ class }}" type="submit">{% if icon_name %}{{ icon(icon_name) }}{% endif %}{{ label }}</button>
+</form>
+{% endmacro %}
+
+{% macro equipment_thumb(eq_type, class="aspect-[4/3]") %}
+{% if eq_type.photo_url %}
+<img src="{{ eq_type.photo_url }}" alt="" loading="lazy" class="{{ class }} w-full rounded-lg object-cover bg-primary-subtle">
+{% else %}
+<div class="{{ class }} grid w-full place-items-center rounded-lg bg-primary-subtle text-primary">{{ icon("flask-conical", "size-10") }}</div>
+{% endif %}
+{% endmacro %}

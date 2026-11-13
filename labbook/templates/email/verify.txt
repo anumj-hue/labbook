@@ -1,0 +1,9 @@
+Hi {{ user.name }},
+
+Confirm this email address to start booking lab equipment on LabBook:
+
+{{ link }}
+
+The link expires in 24 hours. If you didn't create a LabBook account, you can ignore this email.
+
+LabBook

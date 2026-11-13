@@ -1,0 +1,9 @@
+{% extends "auth_layout.html" %}
+{% block title %}Privacy Notice{% endblock %}
+{% block content %}
+<p class="text-xs text-muted-foreground">Version {{ notice.version }} · published {{ notice.published_at|date(with_year=true) }}</p>
+<div class="prose-md mt-3">{{ notice.body_md|markdown }}</div>
+{% endblock %}
+{% block below %}
+<p class="mt-6 text-center"><a class="link font-medium" href="{{ url_for('main.home') if current_user.is_authenticated else url_for('auth.login') }}">Back to LabBook</a></p>
+{% endblock %}

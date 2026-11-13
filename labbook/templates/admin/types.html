@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, approval_badge, muted_badge, empty_state, post_button %}
+{% block title %}Equipment types{% endblock %}
+{% block content %}
+{% call page_header("Equipment types", subtitle="Kinds of equipment, their rules and accessory lists.") %}
+  <a class="btn btn-outline" href="{{ url_for('admin.types', archived='0' if show_archived else '1') }}">{{ icon("archive") }}{{ "Hide archived" if show_archived else "Show archived" }}</a>
+  <a class="btn btn-primary" href="{{ url_for('admin.type_new') }}">{{ icon("plus") }}Add type</a>
+{% endcall %}
+{% if types %}
+<div class="card overflow-hidden">
+  <ul class="divide-y divide-border">
+    {% for t in types %}
+    <li class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="min-w-0">
+        <a class="font-medium hover:text-primary" href="{{ url_for('admin.type_edit', type_id=t.id) }}">{{ t.name }}</a>
+        <p class="mt-0.5 text-xs text-muted-foreground tabular">{{ t.category }} · {{ t.units_in_service|length }} of {{ t.units|length }} units in service · {{ t.active_accessories|length }} accessories</p>
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          {% if t.requires_approval %}{{ approval_badge() }}{% endif %}
+          {% if t.is_archived %}{{ muted_badge("Archived", "archive") }}{% endif %}
+        </div>
+      </div>
+      <div class="flex shrink-0 gap-2">
+        <a class="btn btn-outline btn-sm" href="{{ url_for('admin.type_edit', type_id=t.id) }}">{{ icon("pencil") }}Edit</a>
+        {% if t.is_archived %}
+        {{ post_button(url_for("admin.type_archive", type_id=t.id), "Restore", icon_name="archive-restore") }}
+        {% else %}
+        {{ post_button(url_for("admin.type_archive", type_id=t.id), "Archive", class="btn btn-ghost btn-sm text-destructive", confirm="Archived types are hidden from the catalogue and can't be booked. You can restore it later.", confirm_label="Archive", icon_name="archive") }}
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% else %}
+{{ empty_state("No equipment types yet.", "Add type", url_for("admin.type_new"), "package") }}
+{% endif %}
+{% endblock %}

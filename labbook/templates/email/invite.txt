@@ -1,0 +1,11 @@
+Hi {{ user.name }},
+
+You've been given a {{ user.role.label }} account on LabBook, the department's lab equipment booking system.
+
+Set your password to get started:
+
+{{ link }}
+
+The link expires in 72 hours. Ask a LabBook admin for a new one if it runs out.
+
+LabBook

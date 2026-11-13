@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, empty_state %}
+{% block title %}Labs{% endblock %}
+{% macro hours_summary(hours) %}
+{% set ns = namespace(any=false) %}
+<ul class="space-y-0.5 tabular">
+  {% for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun") %}
+  {% if hours.get(day) %}{% set ns.any = true %}<li><span class="inline-block w-10 text-muted-foreground">{{ day|capitalize }}</span>{% for start, end in hours[day] %}{{ start }}–{{ end }}{% endfor %}</li>{% endif %}
+  {% endfor %}
+</ul>
+{% if not ns.any %}<p class="text-muted-foreground">Closed</p>{% endif %}
+{% endmacro %}
+{% block content %}
+{% call page_header("Labs", subtitle="Rooms and their opening hours.") %}
+  <a class="btn btn-primary" href="{{ url_for('admin.lab_new') }}">{{ icon("plus") }}Add lab</a>
+{% endcall %}
+{% if labs %}
+<ul class="grid gap-4 lg:grid-cols-2">
+  {% for lab in labs %}
+  <li class="card p-5">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold">{{ lab.name }}</h2>
+        <p class="flex items-center gap-1.5 text-muted-foreground">{{ icon("map-pin", "size-3.5") }}{{ lab.location or "No location set" }} · {{ lab.timezone }}</p>
+      </div>
+      <a class="btn btn-outline btn-sm" href="{{ url_for('admin.lab_edit', lab_id=lab.id) }}">{{ icon("pencil") }}Edit</a>
+    </div>
+    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+      <div><h3 class="mb-1 text-xs font-medium text-muted-foreground">Term hours</h3>{{ hours_summary(lab.term_hours) }}</div>
+      <div><h3 class="mb-1 text-xs font-medium text-muted-foreground">Vacation hours</h3>{{ hours_summary(lab.vacation_hours) }}</div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+{{ empty_state("No labs yet. Add the rooms where equipment lives.", "Add lab", url_for("admin.lab_new"), "building-2") }}
+{% endif %}
+{% endblock %}

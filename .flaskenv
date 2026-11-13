@@ -1,0 +1,2 @@
+FLASK_APP=labbook
+FLASK_DEBUG=1

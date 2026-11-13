@@ -1,0 +1,42 @@
+[project]
+name = "labbook"
+version = "0.1.0"
+description = "Lab equipment booking for a single department"
+requires-python = ">=3.12"
+dependencies = [
+    "Flask==3.1.3",
+    "Flask-SQLAlchemy==3.1.1",
+    "SQLAlchemy==2.1.8",
+    "Flask-Migrate==4.1.0",
+    "alembic==1.20.1",
+    "Flask-Login==0.6.3",
+    "Flask-WTF==1.3.0",
+    "WTForms==3.3.2",
+    "email-validator==2.3.0",
+    "argon2-cffi==25.1.0",
+    "markdown-it-py==4.3.0",
+    "python-dotenv==1.2.4",
+    "tzdata",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.2.0", "ruff"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["labbook*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]

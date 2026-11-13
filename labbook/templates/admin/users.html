@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, page_header, role_badge, muted_badge, empty_state, pagination %}
+{% block title %}Users{% endblock %}
+{% macro user_flags(u) %}
+  {% if not u.active %}{{ muted_badge("Deactivated", "archive") }}{% endif %}
+  {% if u.password_hash is none %}{{ muted_badge("Invited", "mail") }}{% elif not u.is_verified %}{{ muted_badge("Unverified", "mail") }}{% endif %}
+  {% if u.is_suspended %}<span class="badge bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300">{{ icon("lock", "size-3") }}Suspended</span>{% endif %}
+{% endmacro %}
+{% block content %}
+{% call page_header("Users") %}
+  <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}">{{ icon("plus") }}Invite user</a>
+{% endcall %}
+
+<form method="get" class="mb-4 grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]" role="search" aria-label="Filter users">
+  <label class="sr-only" for="q">Name or email</label>
+  <input id="q" name="q" type="search" value="{{ q }}" class="input" placeholder="Search name or email">
+  <label class="sr-only" for="role">Role</label>
+  <select id="role" name="role" class="input">
+    <option value="">All roles</option>
+    {% for r in Role %}<option value="{{ r.value }}" {{ "selected" if r.value == role }}>{{ r.label }}</option>{% endfor %}
+  </select>
+  <label class="sr-only" for="status">Status</label>
+  <select id="status" name="status" class="input">
+    <option value="">Any status</option>
+    <option value="active" {{ "selected" if status == "active" }}>Active</option>
+    <option value="deactivated" {{ "selected" if status == "deactivated" }}>Deactivated</option>
+  </select>
+  <button class="btn btn-outline">Filter</button>
+</form>
+
+{% if page.items %}
+<div class="card overflow-hidden">
+  <ul class="divide-y divide-border md:hidden">
+    {% for u in page.items %}
+    <li>
+      <a class="block p-4 hover:bg-background" href="{{ url_for('admin.user_edit', user_id=u.id) }}">
+        <span class="flex items-center justify-between gap-2"><span class="truncate font-medium">{{ u.name }}</span>{{ role_badge(u.role) }}</span>
+        <span class="mt-0.5 block truncate text-xs text-muted-foreground">{{ u.email }}</span>
+        <span class="mt-2 flex flex-wrap gap-1.5">{{ user_flags(u) }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  <table class="data-table hidden md:table">
+    <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Last active</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {% for u in page.items %}
+      <tr>
+        <td class="font-medium">{{ u.name }}</td>
+        <td class="text-muted-foreground">{{ u.email }}</td>
+        <td>{{ role_badge(u.role) }}</td>
+        <td><span class="flex flex-wrap gap-1.5">{{ user_flags(u) }}{% if u.active and u.is_verified and not u.is_suspended %}<span class="text-muted-foreground">Active</span>{% endif %}</span></td>
+        <td class="text-muted-foreground tabular">{{ u.last_active_at|date if u.last_active_at else "Never" }}</td>
+        <td class="text-right"><a class="btn btn-ghost btn-sm" href="{{ url_for('admin.user_edit', user_id=u.id) }}">{{ icon("pencil") }}Manage</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ pagination(page, "admin.users", request.args.to_dict()) }}
+{% else %}
+{{ empty_state("No users match.", "Clear filters", url_for("admin.users"), "users") }}
+{% endif %}
+{% endblock %}

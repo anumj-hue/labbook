@@ -1,0 +1,9 @@
+Hi {{ user.name }},
+
+Someone asked to reset the password for your LabBook account. Choose a new password here:
+
+{{ link }}
+
+The link works once and expires in 1 hour. If you didn't ask for this, you can ignore this email; your password won't change.
+
+LabBook

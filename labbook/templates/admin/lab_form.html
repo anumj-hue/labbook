@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, page_header %}
+{% block title %}{{ "Edit " ~ lab.name if lab else "Add lab" }}{% endblock %}
+{% macro hours_table(prefix, title, hint) %}
+<fieldset class="card p-5 sm:p-6">
+  <legend class="sr-only">{{ title }}</legend>
+  <h2 class="text-lg font-semibold" aria-hidden="true">{{ title }}</h2>
+  <p class="mt-1 text-muted-foreground">{{ hint }}</p>
+  <div class="mt-4 space-y-2">
+    {% for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun") %}
+    {% set sub = form[prefix ~ "_" ~ day] %}
+    <div class="grid grid-cols-[4.5rem_1fr_1fr] items-start gap-2 sm:grid-cols-[6rem_1fr_1fr]">
+      <label class="flex h-11 items-center gap-2 font-medium sm:h-10">{{ sub.open(class="size-4") }}{{ sub.label.text }}</label>
+      <div>
+        {{ sub.start(class="input tabular", step=900, **{"aria-label": sub.label.text ~ " opens"}) }}
+        {% for e in sub.start.errors %}<p class="mt-1 text-xs font-medium text-destructive">{{ e }}</p>{% endfor %}
+      </div>
+      <div>
+        {{ sub.end(class="input tabular", step=900, **{"aria-label": sub.label.text ~ " closes"}) }}
+        {% for e in sub.end.errors %}<p class="mt-1 text-xs font-medium text-destructive">{{ e }}</p>{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</fieldset>
+{% endmacro %}
+{% block content %}
+{{ page_header(self.title(), [("Labs", url_for("admin.labs"))]) }}
+<form method="post" class="max-w-3xl space-y-6" novalidate>
+  {{ form.hidden_tag() }}
+  <div class="card grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
+    {{ field(form.name, class="sm:col-span-2") }}
+    {{ field(form.location) }}
+    {{ field(form.timezone) }}
+  </div>
+  {{ hours_table("term", "Term hours", "Used on dates inside a term. Times are in 15-minute steps.") }}
+  {{ hours_table("vacation", "Vacation hours", "Used outside every term. Leave every day unticked to close the lab during vacations.") }}
+  <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <a class="btn btn-outline" href="{{ url_for('admin.labs') }}">Cancel</a>
+    <button class="btn btn-primary">Save lab</button>
+  </div>
+</form>
+{% endblock %}

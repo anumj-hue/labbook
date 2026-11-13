@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, page_header, post_button %}
+{% block title %}{{ user.name }}{% endblock %}
+{% block content %}
+{{ page_header(user.name, [("Users", url_for("admin.users"))], user.email) }}
+<div class="grid max-w-4xl gap-6 lg:grid-cols-[1fr_18rem]">
+  <form method="post" class="card space-y-5 p-5 sm:p-6" novalidate>
+    {{ form.hidden_tag() }}
+    {{ field(form.name) }}
+    {{ field(form.role) }}
+    <p class="text-xs text-muted-foreground">Self-registration always creates a Student. Only Admins can promote users.</p>
+    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <a class="btn btn-outline" href="{{ url_for('admin.users') }}">Cancel</a>
+      <button class="btn btn-primary">Save</button>
+    </div>
+  </form>
+
+  <aside class="card space-y-4 p-5">
+    <dl class="space-y-2">
+      <div><dt class="text-xs text-muted-foreground">Status</dt><dd class="font-medium">{{ "Active" if user.active else "Deactivated" }}</dd></div>
+      <div><dt class="text-xs text-muted-foreground">Email</dt><dd class="font-medium">{% if user.password_hash is none %}Invite pending{% elif user.is_verified %}Verified{% else %}Not verified{% endif %}</dd></div>
+      <div><dt class="text-xs text-muted-foreground">Joined</dt><dd class="font-medium">{{ user.created_at|date(with_year=true) }}</dd></div>
+      {% if user.is_suspended %}<div><dt class="text-xs text-muted-foreground">Suspended until</dt><dd class="font-medium">{{ user.suspended_until|datetime }}</dd></div>{% endif %}
+    </dl>
+    <div class="flex flex-col gap-2 border-t border-border pt-4">
+      {% if user.password_hash is none and user.active %}
+      {{ post_button(url_for("admin.user_action", user_id=user.id, action="resend-invite"), "Resend invite", class="btn btn-outline w-full", icon_name="mail") }}
+      {% endif %}
+      {% if user.is_suspended %}
+      {{ post_button(url_for("admin.user_action", user_id=user.id, action="lift-suspension"), "Lift suspension", class="btn btn-outline w-full") }}
+      {% endif %}
+      {% if user.id != current_user.id %}
+        {% if user.active %}
+        {{ post_button(url_for("admin.user_action", user_id=user.id, action="deactivate"), "Deactivate", class="btn btn-ghost w-full text-destructive",
+          confirm=user.name ~ " will be signed out and can't sign in again until reactivated. Their future bookings will be cancelled.", confirm_label="Deactivate", icon_name="archive") }}
+        {% else %}
+        {{ post_button(url_for("admin.user_action", user_id=user.id, action="reactivate"), "Reactivate", class="btn btn-outline w-full", icon_name="archive-restore") }}
+        {% endif %}
+      {% endif %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

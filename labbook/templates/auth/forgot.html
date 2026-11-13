@@ -1,0 +1,15 @@
+{% extends "auth_layout.html" %}
+{% from "macros.html" import field %}
+{% block title %}Reset password{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold leading-8">Reset your password</h1>
+<p class="mt-1 text-muted-foreground">We'll email you a link to choose a new password. It works once and expires after 1 hour.</p>
+<form method="post" class="mt-6 space-y-4" novalidate>
+  {{ form.hidden_tag() }}
+  {{ field(form.email, autofocus=true) }}
+  <button class="btn btn-primary w-full">Send reset link</button>
+</form>
+{% endblock %}
+{% block below %}
+<p class="mt-6 text-center"><a class="link font-medium" href="{{ url_for('auth.login') }}">Back to sign in</a></p>
+{% endblock %}

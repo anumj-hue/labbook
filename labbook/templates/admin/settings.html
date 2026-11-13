@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, page_header %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+{{ page_header("Settings", subtitle="Department-wide defaults. Values set on an equipment type override them for that type.") }}
+<form method="post" class="max-w-4xl space-y-6" novalidate>
+  {{ form.hidden_tag() }}
+  <section class="card p-5 sm:p-6" aria-labelledby="h-reg">
+    <h2 id="h-reg" class="text-lg font-semibold">Registration</h2>
+    {{ field(form.allowed_email_domains, class="mt-4", rows=3, placeholder="rajagiritech.edu.in") }}
+  </section>
+  {% for group, fields in groups.items() %}
+  <section class="card p-5 sm:p-6" aria-labelledby="h-{{ loop.index }}">
+    <h2 id="h-{{ loop.index }}" class="text-lg font-semibold">{{ group }}</h2>
+    {% if group == "Student quotas" %}<p class="mt-1 text-muted-foreground">Quotas apply only to Students. Pending and confirmed bookings both count.</p>{% endif %}
+    <div class="mt-4 grid gap-5 sm:grid-cols-2">
+      {% for f in fields %}
+      <div>
+        <label class="label" for="{{ f.id }}">{{ f.label.text }}</label>
+        <div class="flex items-center gap-2">
+          {{ f(class="input tabular max-w-32", **{"aria-invalid": "true" if f.errors else "false", "aria-describedby": f.id ~ "-unit"}) }}
+          <span id="{{ f.id }}-unit" class="text-muted-foreground">{{ f.description }}</span>
+        </div>
+        {% for e in f.errors %}<p class="mt-1 text-xs font-medium text-destructive">{{ e }}</p>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  <div class="flex justify-end"><button class="btn btn-primary">Save settings</button></div>
+</form>
+{% endblock %}

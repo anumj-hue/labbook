@@ -1,0 +1,12 @@
+{% extends "auth_layout.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<p class="text-sm font-semibold text-primary tabular">{{ code }}</p>
+<h1 class="mt-1 text-2xl font-semibold leading-8">{{ title }}</h1>
+<p class="mt-2 text-muted-foreground">
+  {% if code == 404 %}The page you're looking for doesn't exist or has moved.
+  {% elif code == 403 %}Your role doesn't include this page. Ask an admin if you think it should.
+  {% else %}We couldn't complete that request. Please try again in a moment.{% endif %}
+</p>
+<a class="btn btn-primary mt-6 w-full" href="{{ url_for('main.home') }}">Go home</a>
+{% endblock %}

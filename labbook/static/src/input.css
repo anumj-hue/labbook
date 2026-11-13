@@ -1,0 +1,125 @@
+@import "tailwindcss" source(none);
+@source "../../templates";
+@source "../js";
+
+/* `dark:` follows the resolved theme on <html data-theme>, set by the inline script in base.html. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Theme tokens (spec §6.2). */
+:root {
+  --background: #ffffff;
+  --surface: #f8fafc;
+  --border: #e2e8f0;
+  --foreground: #0f172a;
+  --muted-foreground: #64748b;
+  --primary: #0d9488;
+  --primary-hover: #0f766e;
+  --primary-foreground: #ffffff;
+  --primary-subtle: #f0fdfa;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --background: #020617;
+  --surface: #0f172a;
+  --border: #1e293b;
+  --foreground: #f8fafc;
+  --muted-foreground: #94a3b8;
+  --primary: #2dd4bf;
+  --primary-hover: #5eead4;
+  --primary-foreground: #042f2e;
+  --primary-subtle: #134e4a;
+  --destructive: #f87171;
+  --destructive-foreground: #450a0a;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  *, ::before, ::after { border-color: var(--border); }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-feature-settings: "cv11";
+  }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-medium
+      transition-colors disabled:pointer-events-none disabled:opacity-50 sm:h-10 cursor-pointer;
+  }
+  .btn-sm { @apply h-9 px-3 text-xs sm:h-8; }
+  .btn-icon { @apply size-11 px-0 sm:size-10; }
+  .btn-primary { @apply bg-primary text-primary-foreground hover:bg-primary-hover; }
+  .btn-outline { @apply border border-border bg-background hover:bg-surface; }
+  .btn-ghost { @apply hover:bg-surface; }
+  .btn-destructive { @apply bg-destructive text-destructive-foreground hover:opacity-90; }
+
+  .label { @apply mb-1.5 block text-sm font-medium; }
+  .input {
+    @apply block h-11 w-full rounded-lg border border-border bg-background px-3 text-sm sm:h-10
+      placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30;
+  }
+  textarea.input { @apply h-auto min-h-28 py-2 leading-5; }
+  .input[aria-invalid="true"] { @apply border-destructive; }
+
+  .card { @apply rounded-xl border border-border bg-surface; }
+  .badge { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap; }
+  .link { @apply text-primary underline-offset-4 hover:underline; }
+
+  .data-table { @apply w-full text-left text-sm; }
+  .data-table th { @apply border-b border-border px-4 py-2.5 text-xs font-medium text-muted-foreground; }
+  .data-table td { @apply border-b border-border px-4 py-3 align-middle; }
+  .data-table tr:last-child td { @apply border-b-0; }
+
+  .prose-md { @apply space-y-3 leading-6; }
+  .prose-md h1, .prose-md h2, .prose-md h3 { @apply font-semibold; }
+  .prose-md h1 { @apply text-lg; }
+  .prose-md h2 { @apply text-base; }
+  .prose-md ul { @apply list-disc space-y-1 pl-5; }
+  .prose-md ol { @apply list-decimal space-y-1 pl-5; }
+  .prose-md a { @apply text-primary underline underline-offset-4; }
+  .prose-md code { @apply rounded bg-background px-1 py-0.5 text-[0.8125rem]; }
+}
+
+/* App shell: sidebar on desktop, drawer below 1024px (spec §6.3). */
+.app-sidebar { transition: transform 200ms ease, width 200ms ease; }
+[data-drawer="open"] .app-sidebar { transform: none; }
+[data-drawer="open"] .drawer-backdrop { display: block; }
+@media (min-width: 1024px) {
+  [data-sidebar="collapsed"] .app-sidebar { width: 4rem; }
+  [data-sidebar="collapsed"] .app-sidebar .nav-label { display: none; }
+  [data-sidebar="collapsed"] .app-sidebar .nav-link { justify-content: center; padding-inline: 0; }
+  [data-sidebar="collapsed"] .app-main { padding-left: 4rem; }
+  :root:not([data-sidebar="collapsed"]) .collapse-icon-open { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar, .toast { transition: none !important; }
+}
+.toast { transition: opacity 200ms ease, transform 200ms ease; }
+.toast[data-leaving] { opacity: 0; transform: translateY(4px); }
+dialog::backdrop { background: rgb(2 6 23 / 0.5); }

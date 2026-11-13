@@ -1,0 +1,16 @@
+{
+  "name": "labbook-assets",
+  "private": true,
+  "description": "Front-end build tooling only: Tailwind CSS and the Lucide icon sprite.",
+  "scripts": {
+    "build": "npm run icons && npm run css",
+    "css": "tailwindcss -i labbook/static/src/input.css -o labbook/static/css/app.css --minify",
+    "css:watch": "tailwindcss -i labbook/static/src/input.css -o labbook/static/css/app.css --watch",
+    "icons": "node scripts/build-icons.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.1.11",
+    "lucide-static": "0.468.0",
+    "tailwindcss": "4.1.11"
+  }
+}

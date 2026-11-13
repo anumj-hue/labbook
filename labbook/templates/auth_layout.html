@@ -1,0 +1,21 @@
+{% from "macros.html" import icon %}
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  {% include "_head.html" %}
+  <title>{% block title %}{% endblock %} · LabBook</title>
+</head>
+<body class="min-h-screen bg-surface antialiased">
+  <main id="main" class="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-10">
+    <a href="{{ url_for('main.home') }}" class="mb-8 flex items-center justify-center gap-2.5 text-lg font-semibold">
+      <span class="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">{{ icon("flask-conical", "size-5") }}</span>
+      LabBook
+    </a>
+    <div class="rounded-xl border border-border bg-background p-6 sm:p-8">
+      {% block content %}{% endblock %}
+    </div>
+    {% block below %}{% endblock %}
+  </main>
+  {% include "_flashes.html" %}
+</body>
+</html>

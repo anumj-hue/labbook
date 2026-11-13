@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, equipment_thumb, approval_badge %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold leading-8">Hello, {{ current_user.name.split()[0] }}</h1>
+<p class="mt-1 text-muted-foreground">{{ today|date }} · {{ current_user.role.label }}</p>
+
+<div class="mt-6 grid gap-6 lg:grid-cols-3">
+  {% if checklist %}
+  <section class="card p-5 lg:col-span-3" aria-labelledby="h-setup">
+    <h2 id="h-setup" class="text-lg font-semibold">Finish setting up LabBook</h2>
+    <p class="mt-1 text-muted-foreground">{{ checklist|selectattr("done")|list|length }} of {{ checklist|length }} done</p>
+    <ol class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      {% for step in checklist %}
+      <li>
+        <a href="{{ step.url }}" class="flex h-full items-start gap-2.5 rounded-lg border border-border bg-background p-3 hover:border-primary">
+          {% if step.done %}
+          <span class="text-primary">{{ icon("circle-check", "size-5") }}</span><span class="text-muted-foreground line-through">{{ step.label }}</span>
+          {% else %}
+          <span class="text-muted-foreground">{{ icon("circle", "size-5") }}</span><span class="font-medium">{{ step.label }}</span>
+          {% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
+  {% if stats %}
+  <section class="lg:col-span-3" aria-label="At a glance">
+    <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="card p-4"><dt class="text-xs text-muted-foreground">Units in service</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.units_in_service }}</dd></div>
+      <div class="card p-4"><dt class="text-xs text-muted-foreground">Out of service</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.units_out }}</dd></div>
+      <div class="card p-4"><dt class="text-xs text-muted-foreground">Equipment types</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.types }}</dd></div>
+      {% if stats.users is defined %}<div class="card p-4"><dt class="text-xs text-muted-foreground">Active users</dt><dd class="mt-1 text-2xl font-semibold tabular">{{ stats.users }}</dd></div>{% endif %}
+    </dl>
+  </section>
+  {% endif %}
+
+  <section class="card p-5 lg:col-span-2" aria-labelledby="h-quick">
+    <h2 id="h-quick" class="text-lg font-semibold">Find equipment</h2>
+    <form action="{{ url_for('catalogue.index') }}" method="get" class="mt-3 flex gap-2" role="search">
+      <label class="sr-only" for="quick-q">Search equipment</label>
+      <input id="quick-q" name="q" type="search" class="input" placeholder="Oscilloscope, multimeter, …">
+      <button class="btn btn-primary">{{ icon("search") }}<span class="sr-only sm:not-sr-only">Search</span></button>
+    </form>
+    {% if recent_types %}
+    <ul class="mt-4 grid gap-2 sm:grid-cols-2">
+      {% for t in recent_types %}
+      <li>
+        <a href="{{ url_for('catalogue.detail', type_id=t.id) }}" class="flex items-center gap-3 rounded-lg border border-border bg-background p-2.5 hover:border-primary">
+          <div class="w-14 shrink-0">{{ equipment_thumb(t, "aspect-[4/3]") }}</div>
+          <span class="min-w-0">
+            <span class="block truncate font-medium">{{ t.name }}</span>
+            <span class="block truncate text-xs text-muted-foreground">{{ t.category }}</span>
+          </span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <section class="card p-5" aria-labelledby="h-links">
+    <h2 id="h-links" class="text-lg font-semibold">Shortcuts</h2>
+    <ul class="mt-3 space-y-1">
+      <li><a class="flex items-center gap-2 rounded-lg p-2 hover:bg-background" href="{{ url_for('catalogue.index') }}">{{ icon("flask-conical") }}Browse all equipment</a></li>
+      {% if current_user.has_role(Role.LAB_TECH) %}
+      <li><a class="flex items-center gap-2 rounded-lg p-2 hover:bg-background" href="{{ url_for('units.index') }}">{{ icon("wrench") }}Units</a></li>
+      {% endif %}
+      {% if current_user.role == Role.ADMIN %}
+      <li><a class="flex items-center gap-2 rounded-lg p-2 hover:bg-background" href="{{ url_for('admin.users') }}">{{ icon("users") }}Users</a></li>
+      <li><a class="flex items-center gap-2 rounded-lg p-2 hover:bg-background" href="{{ url_for('admin.types') }}">{{ icon("package") }}Equipment types</a></li>
+      <li><a class="flex items-center gap-2 rounded-lg p-2 hover:bg-background" href="{{ url_for('admin.settings') }}">{{ icon("settings") }}Settings</a></li>
+      {% endif %}
+      <li><a class="flex items-center gap-2 rounded-lg p-2 hover:bg-background" href="{{ url_for('auth.profile') }}">{{ icon("user") }}Your profile</a></li>
+    </ul>
+  </section>
+</div>
+{% endblock %}

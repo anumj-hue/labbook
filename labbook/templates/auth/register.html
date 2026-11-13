@@ -1,0 +1,27 @@
+{% extends "auth_layout.html" %}
+{% from "macros.html" import field %}
+{% block title %}Create account{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold leading-8">Create your account</h1>
+<p class="mt-1 text-muted-foreground">
+  {% if domains %}Use your institution email ({% for d in domains %}@{{ d }}{{ ", " if not loop.last }}{% endfor %}).{% else %}Students can register here. Staff accounts are set up by an admin.{% endif %}
+</p>
+<form method="post" class="mt-6 space-y-4" novalidate>
+  {{ form.hidden_tag() }}
+  {{ field(form.name, autofocus=true) }}
+  {{ field(form.email) }}
+  {{ field(form.password) }}
+  {{ field(form.confirm) }}
+  <div>
+    <label class="flex items-start gap-2.5 text-sm" for="{{ form.consent.id }}">
+      {{ form.consent(class="mt-0.5 size-4 shrink-0") }}
+      <span>I have read the <a class="link font-medium" href="{{ url_for('auth.privacy') }}" target="_blank" rel="noopener">Privacy Notice</a></span>
+    </label>
+    {% for error in form.consent.errors %}<p class="mt-1 text-xs font-medium text-destructive">{{ error }}</p>{% endfor %}
+  </div>
+  <button class="btn btn-primary w-full">Create account</button>
+</form>
+{% endblock %}
+{% block below %}
+<p class="mt-6 text-center text-muted-foreground">Already have an account? <a class="link font-medium" href="{{ url_for('auth.login') }}">Sign in</a></p>
+{% endblock %}

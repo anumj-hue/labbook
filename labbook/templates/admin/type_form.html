@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, field, page_header, unit_status_badge, post_button %}
+{% block title %}{{ eq_type.name if eq_type else "Add equipment type" }}{% endblock %}
+{% block content %}
+{% call page_header(self.title(), [("Equipment types", url_for("admin.types"))]) %}
+  {% if eq_type %}<a class="btn btn-outline" href="{{ url_for('catalogue.detail', type_id=eq_type.id) }}">View in catalogue</a>{% endif %}
+{% endcall %}
+
+<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+  <form method="post" class="card space-y-5 p-5 sm:p-6" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="grid gap-5 sm:grid-cols-2">
+      {{ field(form.name, class="sm:col-span-2") }}
+      {{ field(form.category, list="categories") }}
+      {{ field(form.photo_url, placeholder="https://") }}
+    </div>
+    <datalist id="categories">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
+    {{ field(form.description, rows=6) }}
+    {{ field(form.safety_notes, rows=4) }}
+    <fieldset class="space-y-4 rounded-lg border border-border p-4">
+      <legend class="px-1 text-sm font-semibold">Booking rules</legend>
+      {{ field(form.requires_approval) }}
+      {{ field(form.purpose_required) }}
+      <div class="grid gap-5 sm:grid-cols-2">
+        {{ field(form.max_duration_min, step=15, min=15) }}
+        {{ field(form.student_advance_days, min=0) }}
+      </div>
+    </fieldset>
+    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <a class="btn btn-outline" href="{{ url_for('admin.types') }}">Cancel</a>
+      <button class="btn btn-primary">{{ "Save changes" if eq_type else "Create type" }}</button>
+    </div>
+  </form>
+
+  {% if eq_type %}
+  <div class="space-y-6">
+    <section id="accessories" class="card p-5" aria-labelledby="h-acc">
+      <h2 id="h-acc" class="text-lg font-semibold">Accessories</h2>
+      <p class="mt-1 text-muted-foreground">Checked at check-out and check-in.</p>
+      <ul class="mt-4 space-y-2">
+        {% for a in eq_type.accessories %}
+        <li class="rounded-lg border border-border bg-background p-2 {{ 'opacity-60' if a.is_archived }}">
+          <form id="acc-{{ a.id }}" method="post" action="{{ url_for('admin.type_accessory_update', accessory_id=a.id) }}" class="grid grid-cols-[1fr_4rem_4rem] gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input name="name" value="{{ a.name }}" class="input" aria-label="Item name" maxlength="120" required>
+            <input name="expected_qty" type="number" min="1" max="99" value="{{ a.expected_qty }}" class="input tabular" aria-label="Quantity" required>
+            <input name="sort_order" type="number" min="0" max="999" value="{{ a.sort_order }}" class="input tabular" aria-label="Order">
+          </form>
+          <div class="mt-2 flex justify-between gap-2">
+            {{ post_button(url_for("admin.type_accessory_update", accessory_id=a.id), "Restore" if a.is_archived else "Archive",
+              class="btn btn-ghost btn-sm" ~ ("" if a.is_archived else " text-destructive"), hidden={"action": "archive"},
+              icon_name="archive-restore" if a.is_archived else "archive") }}
+            <button form="acc-{{ a.id }}" class="btn btn-outline btn-sm">{{ icon("check") }}Save</button>
+          </div>
+        </li>
+        {% else %}
+        <li class="text-muted-foreground">No accessories yet.</li>
+        {% endfor %}
+      </ul>
+      <form method="post" action="{{ url_for('admin.type_accessory_add', type_id=eq_type.id) }}" class="mt-4 grid grid-cols-[1fr_4rem] gap-2 border-t border-border pt-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+          <label class="label" for="new-acc-name">New item</label>
+          <input id="new-acc-name" name="name" class="input" placeholder="e.g. ×10 probe" maxlength="120" required>
+        </div>
+        <div>
+          <label class="label" for="new-acc-qty">Qty</label>
+          <input id="new-acc-qty" name="expected_qty" type="number" min="1" max="99" value="1" class="input tabular" required>
+        </div>
+        <input type="hidden" name="sort_order" value="{{ eq_type.accessories|length }}">
+        <button class="btn btn-outline col-span-2">{{ icon("plus") }}Add accessory</button>
+      </form>
+    </section>
+
+    <section class="card p-5" aria-labelledby="h-units">
+      <div class="flex items-center justify-between gap-3">
+        <h2 id="h-units" class="text-lg font-semibold">Units</h2>
+        <a class="btn btn-outline btn-sm" href="{{ url_for('units.new', type=eq_type.id) }}">{{ icon("plus") }}Add unit</a>
+      </div>
+      {% if eq_type.units %}
+      <ul class="mt-3 divide-y divide-border">
+        {% for u in eq_type.units %}
+        <li class="flex items-center justify-between gap-2 py-2">
+          <a class="font-medium tabular hover:text-primary" href="{{ url_for('units.edit', unit_id=u.id) }}">{{ u.asset_tag }}</a>
+          {{ unit_status_badge(u.status) }}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="mt-2 text-muted-foreground">No units yet.</p>
+      {% endif %}
+    </section>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

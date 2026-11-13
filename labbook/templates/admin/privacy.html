@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, page_header %}
+{% block title %}Privacy notice{% endblock %}
+{% block content %}
+{% call page_header("Privacy notice", subtitle="Version " ~ notice.version ~ ", published " ~ (notice.published_at|date(with_year=true))) %}
+  <a class="btn btn-outline" href="{{ url_for('auth.privacy') }}" target="_blank" rel="noopener">View public page</a>
+{% endcall %}
+<form method="post" class="card max-w-3xl space-y-5 p-5 sm:p-6" novalidate
+  data-confirm="Publishing a new version asks every user to accept it before they can continue." data-confirm-label="Publish">
+  {{ form.hidden_tag() }}
+  {{ field(form.body_md, rows=20, class="font-mono") }}
+  <p class="text-muted-foreground">Say what data is collected (name, email, booking history, no-shows), why, who can see it, how long it's kept and who to contact.</p>
+  <div class="flex justify-end"><button class="btn btn-primary">Publish new version</button></div>
+</form>
+{% endblock %}

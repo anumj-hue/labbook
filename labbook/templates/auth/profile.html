@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, page_header, role_badge %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+{{ page_header("Profile", subtitle=current_user.email) }}
+<div class="grid gap-6 lg:grid-cols-2">
+  <section class="card p-5 sm:p-6" aria-labelledby="h-name">
+    <h2 id="h-name" class="text-lg font-semibold">Your details</h2>
+    <p class="mt-1 text-muted-foreground">Role: {{ role_badge(current_user.role) }}</p>
+    <form method="post" action="{{ url_for('auth.profile_update', section='name') }}" class="mt-4 space-y-4" novalidate>
+      {{ name_form.hidden_tag() }}
+      {{ field(name_form.name) }}
+      <div class="flex justify-end"><button class="btn btn-primary">Save name</button></div>
+    </form>
+  </section>
+
+  <section class="card p-5 sm:p-6" aria-labelledby="h-email">
+    <h2 id="h-email" class="text-lg font-semibold">Email address</h2>
+    <p class="mt-1 text-muted-foreground">Changing it means verifying the new address before you can book.</p>
+    <form method="post" action="{{ url_for('auth.profile_update', section='email') }}" class="mt-4 space-y-4" novalidate>
+      {{ email_form.hidden_tag() }}
+      {{ field(email_form.new_email) }}
+      {{ field(email_form.current_password) }}
+      <div class="flex justify-end"><button class="btn btn-primary">Change email</button></div>
+    </form>
+  </section>
+
+  <section class="card p-5 sm:p-6" aria-labelledby="h-password">
+    <h2 id="h-password" class="text-lg font-semibold">Password</h2>
+    <p class="mt-1 text-muted-foreground">Changing your password signs you out on other devices.</p>
+    <form method="post" action="{{ url_for('auth.profile_update', section='password') }}" class="mt-4 space-y-4" novalidate>
+      {{ password_form.hidden_tag() }}
+      {{ field(password_form.current_password) }}
+      {{ field(password_form.password) }}
+      {{ field(password_form.confirm) }}
+      <div class="flex justify-end"><button class="btn btn-primary">Change password</button></div>
+    </form>
+  </section>
+
+  <section class="card p-5 sm:p-6" aria-labelledby="h-prefs">
+    <h2 id="h-prefs" class="text-lg font-semibold">Email notifications</h2>
+    <p class="mt-1 text-muted-foreground">Important emails (confirmations, cancellations, approvals) are always sent.</p>
+    <form method="post" action="{{ url_for('auth.profile_update', section='notifications') }}" class="mt-4 space-y-4" novalidate>
+      {{ prefs_form.hidden_tag() }}
+      {{ field(prefs_form.reminders) }}
+      {% if current_user.has_role(Role.TEACHER) %}{{ field(prefs_form.digest) }}{% endif %}
+      {{ field(prefs_form.waitlist_updates) }}
+      <div class="flex justify-end"><button class="btn btn-primary">Save preferences</button></div>
+    </form>
+  </section>
+</div>
+<p class="mt-6 text-muted-foreground">Theme (light, dark or system) is in the menu and saved on this device. <a class="link" href="{{ url_for('auth.privacy') }}">Privacy Notice</a></p>
+{% endblock %}
