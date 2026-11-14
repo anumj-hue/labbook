@@ -45,12 +45,16 @@ def _prompt_password() -> str:
 
 
 @click.command("create-admin")
-@click.option("--email", required=True, help="Email address for the Admin account.")
-@click.option("--name", required=True, help="Full name.")
+@click.option("--email", required=True, envvar="ADMIN_EMAIL", help="Email address for the Admin account.")
+@click.option("--name", required=True, envvar="ADMIN_NAME", help="Full name.")
 @click.option("--invite", is_flag=True, help="Email a set-password link instead of prompting for a password.")
 @click.option("--force", is_flag=True, help="Run even if an Admin already exists.")
+@click.option("--if-missing", is_flag=True,
+              help="Do nothing (exit 0) if an Admin already exists. For start-up scripts without a shell.")
+@click.option("--password", envvar="ADMIN_PASSWORD", default=None,
+              help="Password (or ADMIN_PASSWORD) instead of a prompt. Prefer the prompt where you have a shell.")
 @with_appcontext
-def create_admin(email: str, name: str, invite: bool, force: bool) -> None:
+def create_admin(email: str, name: str, invite: bool, force: bool, if_missing: bool, password: str | None) -> None:
     """Create the first Admin account (already verified)."""
     try:
         email = users.normalise_email(validate_email(email, check_deliverability=False).normalized)
@@ -58,12 +62,27 @@ def create_admin(email: str, name: str, invite: bool, force: bool) -> None:
         raise click.BadParameter(str(err), param_hint="--email") from None
 
     admin_exists = db.session.scalar(select(func.count()).select_from(User).where(User.role == Role.ADMIN)) > 0
+    if admin_exists and if_missing:
+        return
     if admin_exists and not force:
         raise click.ClickException("An Admin already exists. Re-run with --force to create another.")
     if users.find_by_email(email):
-        raise click.ClickException(f"A user with email {email} already exists. Promote them from Admin > Users.")
+        message = f"A user with email {email} already exists. Promote them from Admin > Users."
+        if if_missing:  # never block start-up
+            click.echo(message, err=True)
+            return
+        raise click.ClickException(message)
 
-    password = None if invite else _prompt_password()
+    if invite:
+        password = None
+    elif password is not None:
+        if len(password) < MIN_PASSWORD_LENGTH:
+            raise click.BadParameter(f"Use at least {MIN_PASSWORD_LENGTH} characters.", param_hint="--password")
+    elif if_missing:  # no terminal to prompt on
+        click.echo("No Admin created: set ADMIN_PASSWORD (or pass --invite).", err=True)
+        return
+    else:
+        password = _prompt_password()
     privacy.current_notice()  # make sure version 1 of the notice exists
     user = User(
         name=name.strip(),

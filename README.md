@@ -55,7 +55,7 @@ Or set `JOBS_SECRET` and have cron call `POST /api/jobs/tick` with the header `X
 
 1. On render.com: **New → Blueprint**, connect the GitHub repo and pick this branch.
 2. Fill in the prompted values: SMTP settings and `MAIL_FROM` (verification, invite and reset emails need real email), and for the cron job `LABBOOK_URL` = the web service URL, e.g. `https://labbook.onrender.com`. `SECRET_KEY` and `JOBS_SECRET` are generated.
-3. After the first deploy, open the web service's **Shell** tab and run `flask create-admin --email you@college.edu --name "Your Name"`.
+3. Create the first Admin: on a paid instance, open the web service's **Shell** tab and run `flask create-admin --email you@college.edu --name "Your Name"`. Without a Shell, set `ADMIN_EMAIL`, `ADMIN_NAME` and `ADMIN_PASSWORD` (12+ characters) on the web service; the start command creates the Admin if none exists. Delete `ADMIN_PASSWORD` once you have signed in.
 4. Sign in, then set the allowed email domains under Admin → Settings.
 
 Notes: the disk needs a paid instance (Starter) and limits the service to one instance, which suits SQLite. Migrations run at start (`flask db upgrade`) because disks are not mounted during build. Render snapshots disks daily; for your own copies run `sqlite3 /var/data/labbook.db ".backup /var/data/backup.db"` in the Shell and download it. If you add a custom domain, set `BASE_URL` to it.

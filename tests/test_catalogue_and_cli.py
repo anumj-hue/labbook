@@ -84,6 +84,24 @@ def test_create_admin_refuses_second_run_without_force(app, db):
     assert db.session.query(User).filter_by(role=Role.ADMIN).count() == 2
 
 
+def test_create_admin_if_missing_from_env(app, db):
+    runner = app.test_cli_runner()
+    env = {"ADMIN_EMAIL": "head@example.edu", "ADMIN_NAME": "Head"}
+    result = runner.invoke(create_admin, ["--if-missing"], env=env)
+    assert result.exit_code == 0 and db.session.query(User).count() == 0  # no password: skipped, start-up not blocked
+
+    env["ADMIN_PASSWORD"] = "short"
+    assert runner.invoke(create_admin, ["--if-missing"], env=env).exit_code != 0
+
+    env["ADMIN_PASSWORD"] = "admin-password-1"
+    assert runner.invoke(create_admin, ["--if-missing"], env=env).exit_code == 0
+    assert db.session.query(User).filter_by(email="head@example.edu", role=Role.ADMIN).count() == 1
+
+    env["ADMIN_EMAIL"] = "other@example.edu"
+    assert runner.invoke(create_admin, ["--if-missing"], env=env).exit_code == 0  # an Admin exists: no-op
+    assert db.session.query(User).count() == 1
+
+
 def test_seed_refuses_in_production(tmp_path, monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "x" * 40)
     app = create_app("production", SECRET_KEY="x" * 40, SQLALCHEMY_DATABASE_URI=f"sqlite:///{tmp_path / 'p.db'}")

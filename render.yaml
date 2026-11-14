@@ -14,7 +14,8 @@ services:
     region: singapore
     buildCommand: pip install -e .
     # Disks are not mounted during build or pre-deploy, so migrations run at start.
-    startCommand: 'flask db upgrade && gunicorn -w 2 --threads 4 -b 0.0.0.0:$PORT "labbook:create_app()"'
+    # With ADMIN_EMAIL set, the first Admin is created at start (no Shell needed on Render).
+    startCommand: 'flask db upgrade && { [ -z "$ADMIN_EMAIL" ] || flask create-admin --if-missing; } && gunicorn -w 2 --threads 4 -b 0.0.0.0:$PORT "labbook:create_app()"'
     healthCheckPath: /login
     disk:
       name: labbook-data
@@ -45,6 +46,13 @@ services:
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASSWORD
+        sync: false
+      # First Admin, created at start if no Admin exists. Remove ADMIN_PASSWORD after signing in.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_NAME
+        sync: false
+      - key: ADMIN_PASSWORD
         sync: false
       # BASE_URL is optional: it falls back to the onrender.com URL. Set it if you add a custom domain.
 
