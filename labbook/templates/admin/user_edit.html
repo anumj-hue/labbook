@@ -26,6 +26,10 @@
       {% if user.password_hash is none and user.active %}
       {{ post_button(url_for("admin.user_action", user_id=user.id, action="resend-invite"), "Resend invite", class="btn btn-outline w-full", icon_name="mail") }}
       {% endif %}
+      {% if user.password_hash is not none and not user.is_verified %}
+      {{ post_button(url_for("admin.user_action", user_id=user.id, action="verify-email"), "Mark email verified", class="btn btn-outline w-full", icon_name="mail",
+        confirm="Only do this if you know " ~ user.email ~ " belongs to " ~ user.name ~ ".", confirm_label="Mark verified") }}
+      {% endif %}
       {% if user.is_suspended %}
       {{ post_button(url_for("admin.user_action", user_id=user.id, action="lift-suspension"), "Lift suspension", class="btn btn-outline w-full") }}
       {% endif %}

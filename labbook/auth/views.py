@@ -81,8 +81,11 @@ def register():
         else:
             auth.start_session(user)
             db.session.commit()
-            users.send_verification(user)
-            flash(f"Welcome to LabBook! We've sent a verification link to {user.email}.", "success")
+            if users.send_verification(user):
+                flash(f"Welcome to LabBook! We've sent a verification link to {user.email}.", "success")
+            else:
+                flash("Your account was created, but we couldn't send the verification email. "
+                      "Try “Resend” later or ask an Admin to verify your address.", "error")
             return redirect(url_for("main.home"))
     return render_template("auth/register.html", form=form, domains=users.allowed_domains())
 

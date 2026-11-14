@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import field, page_header %}
+{% from "macros.html" import field, page_header, post_button %}
 {% block title %}Settings{% endblock %}
 {% block content %}
 {{ page_header("Settings", subtitle="Department-wide defaults. Values set on an equipment type override them for that type.") }}
@@ -29,4 +29,9 @@
   {% endfor %}
   <div class="flex justify-end"><button class="btn btn-primary">Save settings</button></div>
 </form>
+<section class="card mt-6 max-w-4xl p-5 sm:p-6" aria-labelledby="h-mail">
+  <h2 id="h-mail" class="text-lg font-semibold">Email</h2>
+  <p class="mt-1 text-muted-foreground">Sending with: <span class="font-medium text-foreground">{{ mail_summary }}</span>. Change these in the server's environment variables.</p>
+  <div class="mt-4">{{ post_button(url_for("admin.test_email"), "Send test email to me", class="btn btn-outline", icon_name="mail") }}</div>
+</section>
 {% endblock %}

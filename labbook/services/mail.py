@@ -41,36 +41,65 @@ def send_mail(to: str, subject: str, template: str, **context) -> bool:
     return send_mail_message(to, subject, body, template)
 
 
-def send_mail_message(to: str, subject: str, body: str, kind: str = "notification") -> bool:
+def _message(to: str, subject: str, body: str) -> EmailMessage:
     msg = EmailMessage()
     msg["From"] = current_app.config["MAIL_FROM"]
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(body)
+    return msg
 
+
+def send_mail_message(to: str, subject: str, body: str, kind: str = "notification") -> bool:
     backend = current_app.config["MAIL_BACKEND"]
     try:
-        if backend == "memory":
-            outbox().append(msg)
-        elif backend == "outbox":
-            folder = Path(current_app.instance_path) / "outbox"
-            folder.mkdir(parents=True, exist_ok=True)
-            slug = re.sub(r"[^a-z0-9]+", "-", subject.lower()).strip("-")[:40]
-            path = folder / f"{utcnow():%Y%m%d-%H%M%S-%f}-{slug}.eml"
-            path.write_bytes(msg.as_bytes())
-            log.info("Email written to outbox: %s", path.name)
-        elif backend == "smtp":
-            cfg = current_app.config
-            with smtplib.SMTP(cfg["SMTP_HOST"], cfg["SMTP_PORT"], timeout=15) as smtp:
-                if cfg["SMTP_STARTTLS"]:
-                    smtp.starttls()
-                if cfg["SMTP_USER"]:
-                    smtp.login(cfg["SMTP_USER"], cfg["SMTP_PASSWORD"] or "")
-                smtp.send_message(msg)
-        else:
-            raise RuntimeError(f"Unknown MAIL_BACKEND {backend!r}")
+        _deliver(_message(to, subject, body))
     except (OSError, smtplib.SMTPException):
         # No recipient address in logs (spec §8: no PII in logs).
         log.exception("Failed to send email %r via %s", kind, backend)
         return False
     return True
+
+
+def send_test(to: str) -> str | None:
+    """Send a test email. Returns None on success, else a short error for the Admin (no secrets)."""
+    body = "This is a test email from LabBook. If you can read it, email is working."
+    try:
+        _deliver(_message(to, "LabBook test email", body))
+    except (OSError, smtplib.SMTPException, RuntimeError) as err:
+        log.exception("Test email failed via %s", current_app.config["MAIL_BACKEND"])
+        return f"{type(err).__name__}: {err}"
+    return None
+
+
+def settings_summary() -> str:
+    cfg = current_app.config
+    if cfg["MAIL_BACKEND"] != "smtp":
+        return f"backend {cfg['MAIL_BACKEND']}"
+    login = "with login" if cfg["SMTP_USER"] else "no login"
+    return f"{cfg['SMTP_HOST']}:{cfg['SMTP_PORT']}, {login}, from {cfg['MAIL_FROM']}"
+
+
+def _deliver(msg: EmailMessage) -> None:
+    backend = current_app.config["MAIL_BACKEND"]
+    if backend == "memory":
+        outbox().append(msg)
+    elif backend == "outbox":
+        folder = Path(current_app.instance_path) / "outbox"
+        folder.mkdir(parents=True, exist_ok=True)
+        slug = re.sub(r"[^a-z0-9]+", "-", str(msg["Subject"]).lower()).strip("-")[:40]
+        path = folder / f"{utcnow():%Y%m%d-%H%M%S-%f}-{slug}.eml"
+        path.write_bytes(msg.as_bytes())
+        log.info("Email written to outbox: %s", path.name)
+    elif backend == "smtp":
+        cfg = current_app.config
+        # Port 465 is TLS from the first byte; 587 upgrades with STARTTLS.
+        smtp_class = smtplib.SMTP_SSL if cfg["SMTP_PORT"] == 465 else smtplib.SMTP
+        with smtp_class(cfg["SMTP_HOST"], cfg["SMTP_PORT"], timeout=15) as smtp:
+            if cfg["SMTP_STARTTLS"] and smtp_class is smtplib.SMTP:
+                smtp.starttls()
+            if cfg["SMTP_USER"]:
+                smtp.login(cfg["SMTP_USER"], cfg["SMTP_PASSWORD"] or "")
+            smtp.send_message(msg)
+    else:
+        raise RuntimeError(f"Unknown MAIL_BACKEND {backend!r}")

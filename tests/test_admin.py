@@ -183,3 +183,24 @@ def test_unit_status_change_is_audited(login_as, client, db):
     assert unit.status is UnitStatus.OUT_OF_SERVICE
     entry = db.session.query(AuditLog).filter_by(entity="EquipmentUnit").one()
     assert entry.after == {"status": "OUT_OF_SERVICE"}
+
+
+def test_admin_can_verify_email_and_send_test(login_as, client, make_user, db, mailbox):
+    login_as(Role.ADMIN)
+    student = make_user(verified=False)
+    assert not student.is_verified
+    client.post(f"/admin/users/{student.id}/verify-email")
+    db.session.refresh(student)
+    assert student.is_verified
+    assert db.session.query(AuditLog).filter_by(entity="User", action="verify_email").count() == 1
+
+    response = client.post("/admin/settings/test-email", follow_redirects=True)
+    assert "Test email sent" in response.text
+    assert mailbox[-1]["Subject"] == "LabBook test email"
+
+
+def test_test_email_shows_smtp_error(login_as, client, app):
+    login_as(Role.ADMIN)
+    app.config.update(MAIL_BACKEND="smtp", SMTP_HOST="127.0.0.1", SMTP_PORT=9, SMTP_USER=None)
+    response = client.post("/admin/settings/test-email", follow_redirects=True)
+    assert "Test email failed (127.0.0.1:9" in response.text

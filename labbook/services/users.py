@@ -83,6 +83,16 @@ def mark_verified(user: User) -> None:
         user.email_verified_at = utcnow()
 
 
+def admin_verify(actor: User, user: User) -> None:
+    """Admin confirms the address by hand, e.g. while outgoing email is broken."""
+    if user.email_verified_at is not None:
+        raise UserError("This email address is already verified.")
+    if user.password_hash is None:
+        raise UserError("This user hasn't accepted their invite yet.")
+    mark_verified(user)
+    audit.record(actor, "User", user.id, "verify_email", {"email_verified": False}, {"email_verified": True})
+
+
 def set_password(user: User, password: str) -> None:
     user.password_hash = hash_password(password)
     revoke_sessions(user)

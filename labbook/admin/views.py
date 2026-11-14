@@ -5,7 +5,7 @@ from sqlalchemy import or_, select
 from ..extensions import db
 from ..models import Accessory, AuditLog, EquipmentType, Holiday, Lab, Role, Term, User
 from ..services import catalogue as cat
-from ..services import closures, notify, privacy, settings, users
+from ..services import closures, mail, notify, privacy, settings, users
 from ..services.settings import RULES
 from .forms import (
     AccessoryForm,
@@ -132,6 +132,9 @@ def user_action(user_id: int, action: str):
         elif action == "lift-suspension":
             users.lift_suspension(current_user, user)
             message = f"{user.name}'s suspension has been lifted."
+        elif action == "verify-email":
+            users.admin_verify(current_user, user)
+            message = f"{user.name}'s email address is now marked as verified."
         elif action == "resend-invite":
             if user.password_hash is not None:
                 raise users.UserError("This user has already set a password.")
@@ -445,7 +448,17 @@ def settings_page():
     groups: dict[str, list] = {}
     for rule in RULES:
         groups.setdefault(rule.group, []).append(getattr(form, rule.key))
-    return render_template("admin/settings.html", form=form, groups=groups)
+    return render_template("admin/settings.html", form=form, groups=groups, mail_summary=mail.settings_summary())
+
+
+@bp.post("/settings/test-email")
+def test_email():
+    error = mail.send_test(current_user.email)
+    if error:
+        flash(f"Test email failed ({mail.settings_summary()}). {error}", "error")
+    else:
+        flash(f"Test email sent to {current_user.email}. Check the inbox and the spam folder.", "success")
+    return redirect(url_for("admin.settings"))
 
 
 
