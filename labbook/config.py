@@ -15,7 +15,8 @@ class Config:
     ENV_NAME = "development"
     SECRET_KEY = os.environ.get("SECRET_KEY", DEV_SECRET_KEY)
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")  # default filled in by create_app
-    BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:5000")
+    # RENDER_EXTERNAL_URL is set automatically on Render.
+    BASE_URL = os.environ.get("BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL", "http://127.0.0.1:5000")
     DEFAULT_TIMEZONE = os.environ.get("DEFAULT_TIMEZONE", "Asia/Kolkata")
     TRUST_PROXY = _env_bool("TRUST_PROXY")
     JOBS_SECRET = os.environ.get("JOBS_SECRET")  # enables POST /api/jobs/tick

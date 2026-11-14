@@ -1,0 +1,63 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Dashboard -> New -> Blueprint -> pick this repo. Render asks for the `sync: false` values.
+envVarGroups:
+  - name: labbook-shared
+    envVars:
+      - key: JOBS_SECRET
+        generateValue: true
+
+services:
+  - type: web
+    name: labbook
+    runtime: python
+    plan: starter            # a persistent disk needs a paid plan; the SQLite file lives on it
+    region: singapore
+    buildCommand: pip install -e .
+    # Disks are not mounted during build or pre-deploy, so migrations run at start.
+    startCommand: flask db upgrade && gunicorn -w 2 --threads 4 -b 0.0.0.0:$PORT "labbook:create_app()"
+    healthCheckPath: /login
+    disk:
+      name: labbook-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - fromGroup: labbook-shared
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: FLASK_APP
+        value: labbook
+      - key: APP_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite:////var/data/labbook.db
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DEFAULT_TIMEZONE
+        value: Asia/Kolkata
+      - key: MAIL_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      # BASE_URL is optional: it falls back to the onrender.com URL. Set it if you add a custom domain.
+
+  # Calls POST /api/jobs/tick every minute (expiry, reminders, no-shows, overdue, 07:00 digest).
+  - type: cron
+    name: labbook-jobs
+    runtime: python
+    plan: starter
+    region: singapore
+    schedule: "* * * * *"
+    buildCommand: "true"
+    startCommand: curl -fsS -X POST -H "X-Jobs-Secret: $JOBS_SECRET" "$LABBOOK_URL/api/jobs/tick"
+    envVars:
+      - fromGroup: labbook-shared
+      - key: LABBOOK_URL       # e.g. https://labbook.onrender.com (no trailing slash)
+        sync: false
