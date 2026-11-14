@@ -14,7 +14,7 @@ services:
     region: singapore
     buildCommand: pip install -e .
     # Disks are not mounted during build or pre-deploy, so migrations run at start.
-    startCommand: flask db upgrade && gunicorn -w 2 --threads 4 -b 0.0.0.0:$PORT "labbook:create_app()"
+    startCommand: 'flask db upgrade && gunicorn -w 2 --threads 4 -b 0.0.0.0:$PORT "labbook:create_app()"'
     healthCheckPath: /login
     disk:
       name: labbook-data
@@ -56,7 +56,7 @@ services:
     region: singapore
     schedule: "* * * * *"
     buildCommand: "true"
-    startCommand: curl -fsS -X POST -H "X-Jobs-Secret: $JOBS_SECRET" "$LABBOOK_URL/api/jobs/tick"
+    startCommand: 'curl -fsS -X POST -H "X-Jobs-Secret: $JOBS_SECRET" "$LABBOOK_URL/api/jobs/tick"'
     envVars:
       - fromGroup: labbook-shared
       - key: LABBOOK_URL       # e.g. https://labbook.onrender.com (no trailing slash)
